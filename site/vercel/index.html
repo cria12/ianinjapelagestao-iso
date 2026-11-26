@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ianinjapelagestao 12.4</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: hero com o ambiente de trabalho desenhado em CSS + 3 botões por sistema; depois secções em grelha simples. */
+:root {
+  --bg: #eef2f8;
+  --surface: #ffffff;
+  --ink: #0e1626;
+  --muted: #56627a;
+  --line: #d6dde9;
+  --accent: #2563eb;
+  --accent-ink: #ffffff;
+  --steel-1: #c9d3e2;
+  --steel-2: #8c9ab0;
+  --wall-a: #c7dbff;
+  --wall-b: #e6d6ff;
+  --wall-c: #ffe1cf;
+  --ok: #15803d;
+  --warn: #b45309;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1120; --surface: #121a2c; --ink: #e8eef9; --muted: #9aa8c0; --line: #24304a;
+    --accent: #5b8cff; --accent-ink: #06122e; --steel-1: #2a3650; --steel-2: #7d8ba6;
+    --wall-a: #1f3566; --wall-b: #3a2a63; --wall-c: #5a3a33; --ok: #4ade80; --warn: #fbbf24;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1120; --surface: #121a2c; --ink: #e8eef9; --muted: #9aa8c0; --line: #24304a;
+  --accent: #5b8cff; --accent-ink: #06122e; --steel-1: #2a3650; --steel-2: #7d8ba6;
+  --wall-a: #1f3566; --wall-b: #3a2a63; --wall-c: #5a3a33; --ok: #4ade80; --warn: #fbbf24;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.6 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.1; }
+p { margin: 0; }
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+/* ---------- topo ---------- */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 20px; }
+.marca { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+.marca i { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--steel-2)); display: block; }
+.top nav { display: flex; gap: 20px; flex-wrap: wrap; font-size: 15px; }
+.top nav a { color: var(--muted); text-decoration: none; }
+.top nav a:hover { color: var(--ink); }
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding-block: 40px 56px; }
+.hero > * { min-width: 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 13px; letter-spacing: .04em; color: var(--muted); }
+.hero h1 { font-size: clamp(40px, 6vw, 68px); font-weight: 800; letter-spacing: -.02em; margin-top: 12px; }
+.hero h1 span { color: var(--accent); }
+.hero .lead { font-size: 19px; color: var(--muted); margin-top: 18px; max-width: 34em; }
+
+.downloads { margin-top: 28px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.btn-os {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 14px 16px; border-radius: 14px; cursor: pointer; text-align: left;
+  font: 600 16px var(--font-body); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line);
+  transition: border-color .15s, transform .15s;
+}
+.btn-os small { font-weight: 400; font-size: 13px; color: var(--muted); }
+.btn-os:hover { border-color: var(--accent); transform: translateY(-1px); }
+.btn-os[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn-os[aria-pressed="true"] small { color: var(--accent-ink); opacity: .85; }
+.meta { margin-top: 14px; font-size: 14px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+
+/* painel de instruções por sistema */
+.painel { margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.painel h3 { font-size: 20px; }
+.painel ol { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.painel .nota { margin-top: 12px; font-size: 14px; color: var(--warn); }
+.baixar {
+  margin-top: 16px; display: inline-flex; align-items: center; gap: 10px;
+  padding: 12px 20px; border-radius: 12px; text-decoration: none;
+  background: var(--accent); color: var(--accent-ink); font-weight: 600;
+}
+.baixar[aria-disabled="true"] { background: var(--steel-1); color: var(--muted); pointer-events: none; }
+.sem-link { margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+/* ---------- ambiente desenhado ---------- */
+.ecra {
+  position: relative; aspect-ratio: 16 / 10; max-width: 100%; border-radius: 18px; overflow: hidden;
+  background:
+    radial-gradient(60% 70% at 15% 20%, var(--wall-a), transparent 70%),
+    radial-gradient(55% 60% at 85% 25%, var(--wall-b), transparent 70%),
+    radial-gradient(70% 60% at 60% 100%, var(--wall-c), transparent 70%),
+    var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 60px -30px rgba(14, 22, 38, .35);
+}
+.barra {
+  position: absolute; inset: 0 0 auto; height: 7%; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 3%; font: 500 clamp(9px, 1.3vw, 12px) var(--font-body); color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 65%, transparent); backdrop-filter: blur(8px);
+}
+.janela {
+  position: absolute; left: 12%; top: 16%; width: 58%; height: 58%; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: 0 16px 40px -16px rgba(14, 22, 38, .4);
+  padding: 4%; display: flex; flex-direction: column; gap: 6%;
+}
+.semaforo { display: flex; gap: 6px; }
+.semaforo b { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.semaforo b:nth-child(1) { background: #ff5f57; }
+.semaforo b:nth-child(2) { background: #febc2e; }
+.semaforo b:nth-child(3) { background: #28c840; }
+.janela .linhas { display: grid; gap: 8px; }
+.janela .linhas i { height: 8px; border-radius: 4px; background: var(--steel-1); display: block; }
+.janela .linhas i:nth-child(2) { width: 80%; }
+.janela .linhas i:nth-child(3) { width: 60%; }
+.janela .cartoes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6%; flex: 1; }
+.janela .cartoes i { border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); display: block; }
+.dock {
+  position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%);
+  display: flex; gap: 8px; padding: 8px 10px; border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 60%, transparent); backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+.dock i { width: clamp(18px, 3.4vw, 34px); aspect-ratio: 1; border-radius: 9px; display: block; }
+.dock i:nth-child(1) { background: linear-gradient(135deg, #60a5fa, #2563eb); }
+.dock i:nth-child(2) { background: linear-gradient(135deg, #334155, #0f172a); }
+.dock i:nth-child(3) { background: linear-gradient(135deg, #a78bfa, #6d28d9); }
+.dock i:nth-child(4) { background: linear-gradient(135deg, #fb923c, #ea580c); }
+.dock i:nth-child(5) { background: linear-gradient(135deg, #34d399, #059669); }
+.dock i:nth-child(6) { background: linear-gradient(135deg, #cbd5e1, #64748b); }
+
+/* ---------- secções ---------- */
+section { padding-block: 56px; border-top: 1px solid var(--line); }
+section > h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 700; letter-spacing: -.01em; }
+section > .sub { color: var(--muted); margin-top: 10px; max-width: 40em; }
+.grelha { margin-top: 28px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px 32px; }
+.grelha > div { min-width: 0; }
+.grelha h3 { font-size: 19px; font-weight: 700; }
+.grelha p { margin-top: 6px; color: var(--muted); }
+.grelha code, .passos code { font-family: var(--font-mono); font-size: .9em; }
+
+.req { margin-top: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.req div { padding: 16px 18px; border-left: 1px solid var(--line); min-width: 0; }
+.req div:first-child { border-left: 0; }
+.req dt { font-size: 13px; color: var(--muted); }
+.req dd { margin: 4px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.verif { margin-top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.hash { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.hash code { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; min-width: 0; flex: 1 1 320px; }
+.copiar { font: 500 14px var(--font-body); padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.verif .cmds { margin-top: 12px; display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+.verif .cmds code { font-family: var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
+
+.testes { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px; }
+.testes span { font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.testes span b { color: var(--ok); font-weight: 600; }
+
+.cta { text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; }
+.cta h2 { font-size: clamp(26px, 3.6vw, 36px); }
+.cta a.baixar { margin-top: 0; }
+footer { padding-block: 32px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; gap: 32px; padding-block: 24px 40px; }
+  .grelha { grid-template-columns: 1fr 1fr; }
+  .req { grid-template-columns: 1fr 1fr; }
+  .req div:nth-child(3) { border-left: 0; }
+  .req div:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+@media (max-width: 520px) {
+  .downloads { grid-template-columns: 1fr; }
+  .grelha { grid-template-columns: 1fr; }
+  .top nav { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="marca"><i aria-hidden="true"></i>ianinjapelagestao</div>
+    <nav aria-label="Secções">
+      <a href="#inclui">O que inclui</a>
+      <a href="#requisitos">Requisitos</a>
+      <a href="#verificar">Verificar</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <p class="eyebrow">Versão 12.4 · x86-64 · sistema live</p>
+      <h1>Um Linux leve, <span>com o aspeto que já conhece.</span></h1>
+      <p class="lead">Arranque a partir de uma pen USB e tenha um ambiente de trabalho completo em português: barra superior, dock, loja de aplicações, drivers e ferramentas de programação. Sem instalar nada no seu disco.</p>
+
+      <div class="downloads" role="group" aria-label="Escolha o sistema onde vai preparar a pen">
+        <button class="btn-os" id="os-windows" data-os="windows" aria-pressed="true">Windows<small>Rufus ou balenaEtcher</small></button>
+        <button class="btn-os" id="os-linux" data-os="linux" aria-pressed="false">Linux<small>balenaEtcher ou dd</small></button>
+        <button class="btn-os" id="os-mac" data-os="mac" aria-pressed="false">Mac<small>balenaEtcher ou dd</small></button>
+      </div>
+
+      <div class="painel" id="painel" aria-live="polite"></div>
+
+      <p class="meta"><span>Imagem ISO híbrida · 2,2 GB</span><span>BIOS e UEFI</span><span>Português (Portugal e Brasil)</span></p>
+    </div>
+
+    <div class="ecra" role="img" aria-label="Ilustração do ambiente de trabalho: barra superior, uma janela e a dock em baixo">
+      <div class="barra"><span>ianinjapelagestao</span><span>qui 12 nov · 19:45</span></div>
+      <div class="janela">
+        <div class="semaforo"><b></b><b></b><b></b></div>
+        <div class="linhas"><i></i><i></i><i></i></div>
+        <div class="cartoes"><i></i><i></i><i></i></div>
+      </div>
+      <div class="dock" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </div>
+
+  <section id="inclui">
+    <h2>O que vem na imagem</h2>
+    <p class="sub">Tudo foi compilado a partir do código-fonte, com base no Linux From Scratch 12.4 e no Beyond Linux From Scratch.</p>
+    <div class="grelha">
+      <div><h3>Ambiente Xfce 4.20</h3><p>Tema claro WhiteSur, barra superior, dock centrada e botões de janela à esquerda. Pesquisa de aplicações com Super+Espaço.</p></div>
+      <div><h3>Conta própria no 1.º arranque</h3><p>Um assistente pede nome, utilizador e senha e cria a sua conta de administrador. Também pode experimentar sem criar conta.</p></div>
+      <div><h3>Rede sem complicações</h3><p>Cabo liga sozinho. Wi-Fi interno ou adaptador USB pelo ícone de rede na barra superior.</p></div>
+      <div><h3>Loja de aplicações</h3><p>Milhares de aplicações do Flathub, instaladas na sua pasta pessoal sem palavra-passe: Firefox, VLC, GIMP, OBS e muitas mais.</p></div>
+      <div><h3>Aplicações no 1.º uso</h3><p>VS Code, Google Chrome, Claude Code e Codex instalam-se com um clique, a partir dos sites oficiais.</p></div>
+      <div><h3>Drivers</h3><p>Intel e AMD com Vulkan, driver NVIDIA a pedido, OpenRazer, HeadsetControl para headsets HyperX e Bluetooth.</p></div>
+      <div><h3>Programação</h3><p>GCC, Clang, Python com pip e venv, Node.js com npm, GDB e Valgrind. Rust, Go e Java a pedido.</p></div>
+      <div><h3>Face Finder</h3><p>Projeto de exemplo com OpenCV que deteta rostos em fotografias, pronto a correr e a estudar.</p></div>
+      <div><h3>Dados guardados, se quiser</h3><p>Sem disco de dados, tudo corre na memória. Com um disco IANINJA-DADOS, as suas contas, redes e aplicações ficam guardadas.</p></div>
+    </div>
+  </section>
+
+  <section id="requisitos">
+    <h2>Requisitos</h2>
+    <p class="sub">Funciona em computadores com processador Intel ou AMD de 64 bits. Se o ecrã ficar preto depois do menu, escolha a entrada “modo gráfico de compatibilidade”.</p>
+    <dl class="req">
+      <div><dt>Processador</dt><dd>x86-64 (Intel ou AMD)</dd></div>
+      <div><dt>Memória</dt><dd>4 GB (8 GB recomendado)</dd></div>
+      <div><dt>Pen USB</dt><dd>4 GB ou mais</dd></div>
+      <div><dt>Firmware</dt><dd>BIOS ou UEFI, Secure Boot desligado</dd></div>
+    </dl>
+  </section>
+
+  <section id="verificar">
+    <h2>Testado antes de cada versão</h2>
+    <p class="sub">Cada imagem é arrancada automaticamente em máquinas virtuais antes de ser publicada: como DVD, como pen USB e como disco, em BIOS e em UEFI.</p>
+    <div class="testes">
+      <span>BIOS <b>20/20</b></span>
+      <span>UEFI <b>20/20</b></span>
+      <span>Pen USB BIOS e UEFI <b>4/4</b></span>
+      <span>Disco BIOS e UEFI <b>4/4</b></span>
+      <span>Persistência <b>OK</b></span>
+    </div>
+    <div class="verif">
+      <strong>Confirme a imagem depois de a descarregar</strong>
+      <div class="hash">
+        <code id="sha">8539b757f9590729d315574910bc0562fa6b1a6fb72def989b6558054ffd2b09</code>
+        <button class="copiar" id="copiar-sha" type="button">Copiar</button>
+      </div>
+      <div class="cmds">
+        <span>Windows (PowerShell): <code>Get-FileHash .\ianinjapelagestao-12.4-x86_64.iso</code></span>
+        <span>Linux: <code>sha256sum ianinjapelagestao-12.4-x86_64.iso</code></span>
+        <span>Mac: <code>shasum -a 256 ianinjapelagestao-12.4-x86_64.iso</code></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Pronto para experimentar?</h2>
+    <a class="baixar" id="baixar-fim" href="#">Descarregar a ISO (2,2 GB)</a>
+  </section>
+
+  <footer>ianinjapelagestao 12.4 · baseado em Linux From Scratch 12.4 · imagem ianinjapelagestao-12.4-x86_64.iso</footer>
+</div>
+
+<script>
+// Endereço público da ISO (ex.: GitHub Releases ou outro alojamento). Vazio = botões de download desativados.
+const URL_ISO = "";
+
+const GUIAS = {
+  windows: {
+    titulo: "Preparar a pen no Windows",
+    passos: [
+      "Descarregue a ISO.",
+      "Abra o <strong>Rufus</strong>, escolha a pen e a ISO e clique em Iniciar.",
+      "Quando o Rufus perguntar, escolha <strong>“Gravar em modo de imagem DD”</strong>. Também pode usar o balenaEtcher, que grava sempre assim.",
+      "Reinicie o PC, abra o menu de arranque (F12, F11, F8 ou Esc, conforme a marca) e escolha a entrada “UEFI: &lt;nome da pen&gt;”."
+    ],
+    nota: "Se o PC recusar a pen, desligue o Secure Boot na configuração do firmware."
+  },
+  linux: {
+    titulo: "Preparar a pen no Linux",
+    passos: [
+      "Descarregue a ISO.",
+      "Grave-a com o <strong>balenaEtcher</strong>, ou no terminal: <code>sudo dd if=ianinjapelagestao-12.4-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync</code>",
+      "Troque <code>/dev/sdX</code> pela pen (veja com <code>lsblk</code>). Tudo o que estiver nela é apagado.",
+      "Reinicie e escolha a pen no menu de arranque do firmware."
+    ],
+    nota: "Confirme o dispositivo com lsblk antes de usar o dd: escolher o disco errado apaga-o."
+  },
+  mac: {
+    titulo: "Preparar a pen no Mac",
+    passos: [
+      "Descarregue a ISO.",
+      "Grave-a com o <strong>balenaEtcher</strong>, ou no Terminal: <code>diskutil list</code>, depois <code>diskutil unmountDisk /dev/diskN</code> e <code>sudo dd if=ianinjapelagestao-12.4-x86_64.iso of=/dev/rdiskN bs=4m</code>",
+      "Use a pen noutro PC, ou num Mac com processador Intel: ao ligar, mantenha a tecla Option (⌥) premida e escolha “EFI Boot”."
+    ],
+    nota: "Os Mac com Apple Silicon (M1, M2, M3, M4) não arrancam sistemas x86-64. Neles, use o Mac só para gravar a pen."
+  }
+};
+
+const painel = document.getElementById("painel");
+const botoes = document.querySelectorAll(".btn-os");
+
+function linkBaixar(id) {
+  const ativo = URL_ISO !== "";
+  const a = `<a class="baixar" id="${id}" href="${ativo ? URL_ISO : "#"}" ${ativo ? 'target="_blank" rel="noopener"' : 'aria-disabled="true" tabindex="-1"'}>Descarregar a ISO (2,2 GB)</a>`;
+  return ativo ? a : a + `<p class="sem-link">O endereço de download ainda não foi publicado.</p>`;
+}
+
+function mostrar(os) {
+  const g = GUIAS[os];
+  botoes.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.os === os)));
+  painel.innerHTML =
+    `<h3>${g.titulo}</h3>` +
+    `<ol>${g.passos.map(p => `<li>${p}</li>`).join("")}</ol>` +
+    `<p class="nota">${g.nota}</p>` +
+    linkBaixar("baixar-" + os);
+  try { localStorage.setItem("so-escolhido", os); } catch (e) {}
+}
+
+function sistemaDoVisitante() {
+  const ua = navigator.userAgent || "";
+  if (/Mac OS X|Macintosh/.test(ua) && !/iPhone|iPad/.test(ua)) return "mac";
+  if (/Linux|X11/.test(ua) && !/Android/.test(ua)) return "linux";
+  return "windows";
+}
+
+botoes.forEach(b => b.addEventListener("click", () => mostrar(b.dataset.os)));
+
+let inicial = sistemaDoVisitante();
+try { inicial = localStorage.getItem("so-escolhido") || inicial; } catch (e) {}
+mostrar(GUIAS[inicial] ? inicial : "windows");
+
+const fim = document.getElementById("baixar-fim");
+if (URL_ISO) { fim.href = URL_ISO; fim.target = "_blank"; fim.rel = "noopener"; }
+else { fim.setAttribute("aria-disabled", "true"); fim.tabIndex = -1; }
+
+document.getElementById("copiar-sha").addEventListener("click", async (ev) => {
+  const texto = document.getElementById("sha").textContent;
+  try {
+    await navigator.clipboard.writeText(texto);
+    ev.target.textContent = "Copiado";
+  } catch (e) {
+    const r = document.createRange();
+    r.selectNodeContents(document.getElementById("sha"));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    ev.target.textContent = "Selecionado";
+  }
+  setTimeout(() => { ev.target.textContent = "Copiar"; }, 2000);
+});
+</script>
+</body>
+</html>

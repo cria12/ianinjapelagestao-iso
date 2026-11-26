@@ -1,0 +1,113 @@
+#!/bin/bash
+# ligar-wifi — liga o ianinjapelagestao a uma rede Wi-Fi (WPA/WPA2/WPA3-pessoal ou aberta)
+# à maneira do LFS/BLFS: escreve /etc/sysconfig/wpa_supplicant-<iface>.conf (wpa_passphrase)
+# e faz "ifup <iface>" com /etc/sysconfig/ifconfig.<iface> (SERVICE="wpa", WPA_SERVICE="dhcpcd").
+#
+# Uso: ligar-wifi <SSID> [interface]     ligar (pede a senha; Enter vazio = rede aberta)
+#      ligar-wifi -l [interface]         procurar redes (iw scan)
+#      ligar-wifi -d [interface]         desligar (ifdown)
+#      ligar-wifi -h                     ajuda
+# A interface por omissão é a primeira placa sem fios encontrada (normalmente wlan0).
+
+set -u
+
+ajuda() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
+
+# precisa de root: volta a correr com sudo (o ninja tem sudo)
+if [ "$(id -u)" -ne 0 ]; then
+  exec sudo -- "$0" "$@"
+fi
+
+erro() { echo "ligar-wifi: $*" >&2; exit 1; }
+
+placa_sem_fios() {
+  local d
+  for d in /sys/class/net/*; do
+    [ -d "$d/wireless" ] || [ -L "$d/phy80211" ] || continue
+    basename "$d"; return 0
+  done
+  return 1
+}
+
+modo=ligar
+case "${1:-}" in
+  -h|--help|--ajuda|"") ajuda; [ -n "${1:-}" ]; exit $? ;;
+  -l|--procurar) modo=procurar; shift ;;
+  -d|--desligar) modo=desligar; shift ;;
+esac
+
+if [ "$modo" = ligar ]; then
+  SSID=$1; shift
+  [ -n "$SSID" ] || erro "o SSID não pode ser vazio"
+fi
+IF=${1:-$(placa_sem_fios || true)}
+if [ -z "$IF" ]; then
+  echo "ligar-wifi: não foi encontrada nenhuma placa de rede sem fios." >&2
+  echo "  Placas de rede: $(ls /sys/class/net | tr '\n' ' ')" >&2
+  echo "  Verifique o driver e o firmware: lspci -k ; lsusb ; dmesg | grep -iE 'firmware|wlan|80211'" >&2
+  exit 1
+fi
+[ -e /sys/class/net/$IF ] || erro "a interface $IF não existe (placas: $(ls /sys/class/net | tr '\n' ' '))"
+
+CFG=/etc/sysconfig/wpa_supplicant-$IF.conf
+IFCFG=/etc/sysconfig/ifconfig.$IF
+
+# o bloqueio por software (tecla de modo de avião) impede a ligação
+type -P rfkill > /dev/null && rfkill unblock wifi 2> /dev/null
+
+case $modo in
+  procurar)
+    ip link set "$IF" up || erro "não foi possível ativar $IF"
+    echo "Redes visíveis em $IF:"
+    iw dev "$IF" scan 2> /dev/null | sed -n 's/^[[:space:]]*SSID: \(.\+\)$/  \1/p' | sort -u
+    exit 0 ;;
+  desligar)
+    ifdown "$IF"
+    exit $? ;;
+esac
+
+# configuração da interface (cópia do modelo do wlan0 para outros nomes)
+if [ ! -f "$IFCFG" ]; then
+  if [ -f /etc/sysconfig/ifconfig.wlan0 ]; then
+    sed "s/^IFACE=.*/IFACE=\"$IF\"/" /etc/sysconfig/ifconfig.wlan0 > "$IFCFG"
+  else
+    printf 'ONBOOT="no"\nIFACE="%s"\nSERVICE="wpa"\nWPA_ARGS=""\nWPA_SERVICE="dhcpcd"\nDHCP_START="-b -q -h $HOSTNAME"\nDHCP_STOP="-k"\n' "$IF" > "$IFCFG"
+  fi
+fi
+
+read -r -s -p "Senha da rede \"$SSID\" (Enter vazio = rede aberta): " SENHA; echo
+umask 077
+{
+  echo "# Gerado por ligar-wifi em $(date '+%Y-%m-%d %H:%M') — rede \"$SSID\""
+  echo "ctrl_interface=/run/wpa_supplicant"
+  echo "update_config=0"
+  if [ -z "$SENHA" ]; then
+    printf 'network={\n\tssid="%s"\n\tkey_mgmt=NONE\n}\n' "$SSID"
+  else
+    [ ${#SENHA} -ge 8 ] && [ ${#SENHA} -le 63 ] || erro "a senha WPA tem de ter entre 8 e 63 caracteres"
+    wpa_passphrase "$SSID" "$SENHA" | sed '/^[[:space:]]*#psk=/d' \
+      || erro "wpa_passphrase falhou"
+  fi
+} > "$CFG.tmp" || erro "não foi possível escrever $CFG"
+mv -f "$CFG.tmp" "$CFG"
+chmod 600 "$CFG"
+unset SENHA
+echo "Configuração gravada em $CFG"
+
+# (re)ligar: wpa_supplicant + dhcpcd através do serviço "wpa" do BLFS
+ifdown "$IF" > /dev/null 2>&1
+ifup "$IF" || erro "ifup $IF falhou (ver: wpa_cli -i $IF status ; dmesg | tail)"
+
+echo -n "A aguardar endereço IP em $IF"
+for i in $(seq 30); do
+  if ip -4 addr show "$IF" | grep -q 'inet '; then
+    echo; echo "Ligado a \"$SSID\":"
+    ip -4 addr show "$IF" | sed -n 's/^ *inet \([^ ]*\).*/  IP \1/p'
+    exit 0
+  fi
+  echo -n .; sleep 1
+done
+echo
+echo "Sem endereço IP ao fim de 30 s. Estado do wpa_supplicant:"
+wpa_cli -p /run/wpa_supplicant -i "$IF" status 2> /dev/null | grep -E '^(wpa_state|ssid)=' || true
+exit 1

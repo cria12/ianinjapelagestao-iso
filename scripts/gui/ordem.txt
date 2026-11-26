@@ -1,0 +1,117 @@
+# F8d — páginas BLFS da interface gráfica, por ordem de instalação.
+# Gerado com scripts/gui/resolver.sh (Required + Recommended) e acertado à mão nos ciclos:
+#  - freetype2 -> harfbuzz -> freetype2 de novo (o livro manda recompilar o FreeType com HarfBuzz)
+#  - xorg-server antes do driver xorg-libinput (o driver precisa do servidor; o servidor só o recomenda)
+#  - elogind antes do polkit; gdk-pixbuf antes do librsvg; gtk3 antes do adwaita-icon-theme
+# Formato: <página[@secção]> [id-do-passo]   (id por omissão = nome da página/secção)
+# --- bloco 1: base gráfica (bibliotecas gerais, Xorg, Mesa)
+x/xorg7
+x/util-macros
+x/xorgproto
+x/libXau
+x/xcb-proto
+x/libXdmcp
+x/libxcb
+general/libpng
+general/pixman
+general/python-modules@docutils
+general/icu
+general/libxml2
+general/libxslt
+general/pcre2
+general/glib2
+general/freetype2
+general/graphite2
+general/harfbuzz
+general/freetype2 freetype2-harfbuzz
+general/fontconfig
+x/x7lib
+x/libxcvt
+x/libdrm
+general/python-modules@Mako
+general/python-modules@cython
+general/libyaml
+general/python-modules@PyYAML
+general/llvm
+general/spirv-headers
+general/spirv-tools
+general/spirv-llvm-translator
+general/libclc
+x/mesa
+x/xbitmaps
+x/xcb-util
+x/x7app
+x/xcursor-themes
+x/x7font
+x/xkeyboard-config
+general/dbus
+general/elogind
+general/duktape
+postlfs/polkit
+basicnet/libtirpc
+x/libepoxy
+x/xorg-server
+x/x7driver@libevdev
+general/mtdev
+x/x7driver@libinput
+x/x7driver@xorg-libinput-driver
+x/xinit
+# --- bloco 2: GTK3 e dependências (inclui Rust para o librsvg)
+x/at-spi2-core
+general/fribidi
+x/cairo
+x/pango
+general/libssh2
+server/sqlite
+general/rust
+general/cargo-c
+general/nasm
+general/yasm
+general/libjpeg
+general/shared-mime-info
+general/libtiff
+x/gdk-pixbuf
+general/librsvg
+x/hicolor-icon-theme
+general/iso-codes
+general/wayland
+general/wayland-protocols
+general/libxkbcommon
+x/gtk3
+x/adwaita-icon-theme
+x/startup-notification
+# --- bloco 3: Xfce, terminal, LightDM e tipos de letra
+xfce/libwnck
+general/libdisplay-info
+xfce/xfce4-dev-tools
+xfce/libxfce4util
+xfce/xfconf
+xfce/libxfce4ui
+xfce/libxfce4windowing
+general/desktop-file-utils
+xfce/exo
+xfce/garcon
+xfce/xfce4-panel
+xfce/xfce4-session
+xfce/xfwm4
+x/libnotify
+general/libgudev
+xfce/thunar
+xfce/xfdesktop
+multimedia/libogg
+multimedia/libvorbis
+multimedia/sound-theme-freedesktop
+multimedia/libcanberra
+x/libxklavier
+xfce/xfce4-settings
+general/fast_float
+gnome/vte
+xfce/xfce4-terminal
+xfce/xfce4-appfinder
+xfce/tumbler
+xfce/xfce4-notifyd
+pst/itstool
+general/libgpg-error
+general/libgcrypt
+x/lightdm
+x/TTF-and-OTF-fonts

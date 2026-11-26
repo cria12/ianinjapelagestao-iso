@@ -1,0 +1,559 @@
+#!/usr/bin/expect -f
+# senha do root: variável SENHA_ROOT (carregar_senhas em lib.sh, de scripts/senhas.local)
+if {![info exists env(SENHA_ROOT)]} { puts stderr "falta SENHA_ROOT"; exit 2 }
+set senha_root $env(SENHA_ROOT)
+# Teste headless da ISO no QEMU (consola série).
+# Uso: teste-qemu.exp <bios|uefi> <iso> <log> <resultado>
+#      teste-qemu.exp persistencia <iso> <log> <resultado> <imagem-dados.img>
+#      teste-qemu.exp assistente-bios <iso> <log> <resultado>
+# Modos bios/uefi: critérios 1-10 (os 7 originais + zram ativo + IA responde + módulos carregados
+#   automaticamente: placa de som intel-hda cujo driver snd_hda_intel é módulo, carregado pelo udev)
+#   e 12-14 da interface gráfica (LightDM no nível 5; Xorg com modesetting e greeter; fonte Inter e
+#   tema WhiteSur-Light). O login continua a ser pela ttyS0 (agetty ativo também no nível 5).
+#   Critérios 15-19 das aplicações da F8e (sem rede; o que precisa da Internet é só INFO):
+#   15 instalar-aplicacoes/instalar-ferramentas e o instalar-tudo-click.sh; 16 Node.js/npm, Python
+#   (sqlite3, requests, numpy, cv2) e GDB; 17 Flatpak (remote flathub do sistema, sandbox bwrap como
+#   ninja) e loja --verificar; 18 Vulkan (lavapipe), info-hardware, instalar-driver-nvidia -l,
+#   Bluetooth, HeadsetControl e capturas de ecrã; 19 face-finder encontra rostos nas fotos incluídas.
+#   Placa gráfica -vga std (bochs-drm, módulo do kernel, dá KMS ao Xorg); o monitor do QEMU fica num
+#   socket unix (logs/11-monitor-<modo>.sock) para uma captura do greeter (screendump PPM -> PNG,
+#   logs/11-ecra-<modo>.png, com scripts/ppm-para-png.py) — só informativa, não é critério.
+# Modo persistencia (BIOS, com a imagem ext4 IANINJA-DADOS como disco virtio): critério 11,
+#   em dois arranques (o 1.º escreve /root/marcador-persistencia, o 2.º confirma que lá está).
+# Critérios 20-21 (bios/uefi, F8e blocos 08 e 09): 20 o NetworkManager liga o cabo (eth0, e1000 do
+#   -nic user) sozinho; 21 o assistente de 1.º arranque está desligado pela cadeia SMBIOS.
+# Modo assistente-bios (BIOS, SEM a cadeia SMBIOS ianinja.assistente=0): 4 critérios — estado
+#   "ativo", o greeter do LightDM é o assistente (assistente.py), "aplicar criar" pelo caminho do
+#   greeter (lightdm -> sudo) cria uma conta de ensaio, e a conta autentica com a senha (e recusa
+#   uma senha errada). Tudo na camada de escrita em RAM: perde-se ao desligar.
+# Com /dev/kvm: aceleração KVM (-cpu host, para o llama.cpp ver AVX2) e timeouts normais.
+# Sem /dev/kvm (emulação TCG, muito mais lenta, -cpu max): todos os timeouts passam a >= 600 s
+# (o da IA a >= 900 s) e um timeout é registado como LENTO (inconclusivo por lentidão), nunca como FAIL.
+set modo   [lindex $argv 0]
+set iso    [lindex $argv 1]
+set logf   [lindex $argv 2]
+set resf   [lindex $argv 3]
+set img    [lindex $argv 4]
+set dirlog [file dirname [file normalize $logf]]
+set sock   $dirlog/11-monitor-$modo.sock
+set ppm    $dirlog/11-ecra-$modo.ppm
+set png    $dirlog/11-ecra-$modo.png
+set conv   [file dirname [file normalize [info script]]]/ppm-para-png.py
+log_file -noappend $logf
+set res [open $resf w]
+
+set kvm [expr {[file exists /dev/kvm] && [file writable /dev/kvm]}]
+if {$kvm} { puts $res "INFO  aceleração KVM ativa" } else { puts $res "INFO  /dev/kvm indisponível: emulação TCG, timeouts >= 600 s, timeouts = LENTO" }
+flush $res
+
+# timeout efetivo: sem KVM nunca inferior a 10 minutos
+proc t {s} {
+  global kvm
+  if {!$kvm && $s < 600} { return 600 }
+  return $s
+}
+proc criterio {nome ok} {
+  global res
+  if {$ok} { puts $res "PASS  $nome" } else { puts $res "FAIL  $nome" }
+  flush $res
+}
+proc nota {texto} {
+  global res
+  puts $res "INFO  $texto"
+  flush $res
+}
+# timeout: sem KVM é lentidão (LENTO), com KVM é falha
+proc expirou {nome {fatal 0}} {
+  global res kvm
+  if {$kvm} { puts $res "FAIL  $nome (timeout)" } else { puts $res "LENTO $nome (timeout sem KVM — não conta como falha)" }
+  flush $res
+  if {$fatal} {
+    puts $res "INFO  teste interrompido: os critérios seguintes não foram avaliados"
+    close $res
+    exit 2
+  }
+}
+# falha observada que impede continuar
+proc falhou {nome {motivo ""}} {
+  global res
+  if {$motivo ne ""} { nota $motivo }
+  criterio $nome 0
+  close $res
+  exit 1
+}
+
+# captura do ecrã da VM pelo monitor do QEMU (socket unix): screendump em PPM e conversão para PNG
+# com scripts/ppm-para-png.py (só biblioteca padrão do Python). Só informativa: nunca falha o teste.
+proc captura {} {
+  global sock ppm png conv
+  file delete -force $ppm $png
+  if {[auto_execok socat] eq ""} { nota "captura do ecrã: socat não existe no host"; return }
+  if {![file exists $sock]} { nota "captura do ecrã: socket do monitor $sock não existe"; return }
+  # o sleep mantém a ligação aberta enquanto o QEMU escreve o ficheiro
+  if {[catch {exec sh -c {{ printf 'screendump %s\n' "$1"; sleep 3; } | socat - "UNIX-CONNECT:$2" > /dev/null 2>&1} sh $ppm $sock} err]} {
+    nota "captura do ecrã: o monitor do QEMU não respondeu ($err)"; return
+  }
+  for {set i 0} {$i < 20 && !([file exists $ppm] && [file size $ppm] > 0)} {incr i} { after 500 }
+  if {!([file exists $ppm] && [file size $ppm] > 0)} { nota "captura do ecrã: screendump não criou $ppm"; return }
+  if {[auto_execok python3] ne "" && ![catch {exec python3 -I $conv $ppm $png} out]} {
+    file delete -force $ppm
+    nota "captura do ecrã do greeter: $png ($out)"
+  } else {
+    nota "captura do ecrã do greeter (sem conversão para PNG): $ppm"
+  }
+}
+
+# VM com RAM suficiente para um modelo de 1,5 B em Q4 (+ zram) e vários núcleos para o llama.cpp
+# -vga std: placa bochs (driver DRM bochs, módulo) para o Xorg ter KMS; com -nographic não há janela,
+# mas a placa existe. Com -monitor explícito a série fica sozinha no stdio (sem o mux do -nographic).
+proc arrancar {} {
+  global iso modo kvm img spawn_id sock
+  set cmd [list qemu-system-x86_64 -m 4096 -smp 4 -cdrom $iso -boot d -nographic -no-reboot \
+           -nic user,model=e1000 -vga std]
+  # o assistente de 1.º arranque (bloco 09) fica desligado nos testes: o critério do greeter espera o
+  # lightdm-gtk-greeter. Só o modo assistente-bios arranca sem a cadeia (o assistente fica ativo).
+  if {$modo ne "assistente-bios"} {
+    lappend cmd -smbios type=11,value=ianinja.assistente=0
+  }
+  if {$modo ne "persistencia"} {
+    file delete -force $sock
+    lappend cmd -monitor unix:$sock,server,nowait
+  }
+  if {$kvm} { lappend cmd -enable-kvm -cpu host } else { lappend cmd -cpu max,la57=off }
+  if {$modo eq "uefi"} { lappend cmd -bios /usr/share/ovmf/OVMF.fd }
+  if {$modo eq "persistencia"} { lappend cmd -drive file=$img,format=raw,if=virtio }
+  # placa de som HDA: o driver (snd_hda_intel) é módulo — critério 10
+  if {$modo in {bios uefi}} { lappend cmd -device intel-hda -device hda-duplex }
+  eval spawn $cmd
+}
+
+# espera pelo login: e entra como root com PS1='TST> ' (nome = critério em caso de falha)
+proc entrar_root {nome} {
+  global spawn_id timeout
+  set timeout [t 300]
+  expect {
+    "login:" {}
+    timeout { expirou $nome 1 }
+  }
+  set timeout [t 60]
+  send "root\r"
+  expect {
+    "assword:" {}
+    timeout { expirou $nome 1 }
+  }
+  send "$senha_root\r"
+  expect {
+    "# " {}
+    "Login incorrect" { falhou $nome "login root recusado" }
+    timeout { expirou $nome 1 }
+  }
+  send "PS1='TST> '\r"
+  expect "TST> "
+}
+
+# ---------------------------------------------------------------- modo persistência (critério 11)
+if {$modo eq "persistencia"} {
+  set nome "Persistência IANINJA-DADOS (2 arranques: marcador em /root sobrevive)"
+  set marcador 0
+  foreach arranque {1 2} {
+    arrancar
+    set timeout [t 240]
+    expect {
+      "ianinjapelagestao 12.4 (Live)" {}
+      timeout { expirou $nome 1 }
+    }
+    # a mensagem é "persistência: IANINJA-DADOS (/dev/xxx)"; .{1,4} aceita o "ê" em qualquer codificação
+    expect {
+      -re {AVISO: n[^\r\n]*IANINJA-DADOS} { falhou $nome "arranque $arranque: o initramfs não conseguiu usar o disco de dados" }
+      -re {persist.{1,4}ncia: IANINJA-DADOS \((/dev/[a-z0-9]+)\)} { nota "arranque $arranque: persistência ligada em $expect_out(1,string)" }
+      -re {persist.{1,4}ncia: desligada} { falhou $nome "arranque $arranque: o initramfs não encontrou IANINJA-DADOS (tmpfs)" }
+      "FALHA NO ARRANQUE LIVE" { falhou $nome "arranque $arranque: falha no initramfs" }
+      timeout { expirou $nome 1 }
+    }
+    expect {
+      "raiz overlay pronta" {}
+      "FALHA NO ARRANQUE LIVE" { falhou $nome "arranque $arranque: falha no initramfs" }
+      timeout { expirou $nome 1 }
+    }
+    entrar_root $nome
+    set timeout [t 60]
+    send "mount | grep -E ' / | /mnt/dados '\r"
+    expect "TST> "
+    if {$arranque == 1} {
+      send "rm -f /root/marcador-persistencia; echo \"MARCA\"\"DOR_OK\" > /root/marcador-persistencia && sync && echo \"ESCRI\"\"TO_OK\"\r"
+      expect {
+        "ESCRITO_OK" { nota "arranque 1: marcador escrito em /root/marcador-persistencia" }
+        timeout { expirou $nome 1 }
+      }
+    } else {
+      send "cat /root/marcador-persistencia 2>/dev/null || echo \"MARCADOR\"\"_FALTA\"\r"
+      expect {
+        "MARCADOR_OK" { set marcador 1 }
+        "MARCADOR_FALTA" { set marcador 0 }
+        timeout { expirou $nome 1 }
+      }
+    }
+    expect "TST> "
+    send "sync; poweroff\r"
+    set timeout [t 180]
+    expect {
+      eof {}
+      timeout { expirou $nome 1 }
+    }
+    catch {close}
+    catch {wait}
+  }
+  if {$marcador} {
+    criterio $nome 1
+  } else {
+    falhou $nome "arranque 2: /root/marcador-persistencia não existe"
+  }
+  close $res
+  exit 0
+}
+
+# ---------------------------------------------------------------- modo assistente-bios (4 critérios)
+# Arranque BIOS sem a cadeia SMBIOS: o greeter do LightDM tem de ser o assistente. Depois cria-se
+# uma conta de ensaio pelo mesmo caminho que o assistente usa (utilizador lightdm -> sudo -n ->
+# /usr/libexec/ianinja-assistente/aplicar criar, JSON no stdin, senha_root=false para não mudar a
+# senha do root) e confirma-se que ela autentica com a senha (su a partir do ninja, que não é root,
+# por isso a senha é mesmo pedida) e que uma senha errada é recusada. Tudo fica na camada de escrita
+# em RAM. Cada passo falha limpo (FAIL; LENTO sem KVM) sem prender o teste.
+if {$modo eq "assistente-bios"} {
+  arrancar
+  set timeout [t 240]
+  expect {
+    "ianinjapelagestao 12.4 (Live)" {}
+    timeout { expirou "Assistente: arranque até ao menu do GRUB" 1 }
+  }
+  expect {
+    "raiz overlay pronta" {}
+    "FALHA NO ARRANQUE LIVE" { falhou "Assistente: arranque (initramfs)" "falha no initramfs" }
+    timeout { expirou "Assistente: arranque (initramfs)" 1 }
+  }
+  entrar_root "Assistente: login root na série"
+
+  # A1. estado "ativo" (sem ianinja.assistente=0 na linha do kernel nem no SMBIOS)
+  set nome "Assistente ativo sem a cadeia SMBIOS (ianinja-assistente --estado = ativo)"
+  set timeout [t 60]
+  send -- {cat /proc/cmdline; E=$(ianinja-assistente --estado 2>&1); echo "estado: $E"; if [ "$E" = ativo ]; then echo "ESTA""DO_ATIVO"; else echo "ESTA""DO_OUTRO"; fi}
+  send "\r"
+  expect {
+    "ESTADO_ATIVO" { criterio $nome 1 }
+    "ESTADO_OUTRO" { criterio $nome 0 }
+    timeout { expirou $nome }
+  }
+  expect "TST> "
+
+  # A2. o greeter do LightDM é o assistente (python3 ... assistente.py --greeter), não o GTK
+  set nome "Greeter do LightDM é o assistente (pgrep -f assistente.py com o lightdm a correr)"
+  set espera [expr {$kvm ? 90 : 300}]
+  set timeout [expr {$kvm ? 240 : 720}]
+  send "N=$espera\r"
+  expect "TST> "
+  send -- {for i in $(seq $N); do pidof lightdm > /dev/null && pgrep -f /usr/share/ianinja-assistente/assistente.py > /dev/null && break; pidof lightdm-gtk-greeter > /dev/null && break; sleep 2; done; ps -eo pid,user,args | grep -E '[a]ssistente|[l]ightdm-gtk|[X]org'; grep -h 'ianinja-assistente' /var/log/lightdm/*.log 2> /dev/null | tail -n 4; if pidof lightdm > /dev/null && pgrep -f /usr/share/ianinja-assistente/assistente.py > /dev/null; then echo "ASSIS""TENTE_GREETER"; elif pidof lightdm-gtk-greeter > /dev/null; then echo "ASSIS""TENTE_GTK"; else echo "ASSIS""TENTE_FALTA"; tail -n 8 /var/log/lightdm/lightdm.log 2> /dev/null; fi}
+  send "\r"
+  set greeter 0
+  expect {
+    "ASSISTENTE_GREETER" { criterio $nome 1; set greeter 1 }
+    "ASSISTENTE_GTK" { criterio $nome 0; nota "apareceu o lightdm-gtk-greeter no lugar do assistente (ver /var/log/lightdm/seat0-greeter.log no log)" }
+    "ASSISTENTE_FALTA" { if {$kvm} { criterio $nome 0 } else { expirou $nome } }
+    timeout { expirou $nome }
+  }
+  expect "TST> "
+  # captura do assistente (só informativa)
+  if {$greeter} {
+    after [expr {$kvm ? 10000 : 60000}]
+    captura
+  }
+
+  # A3. criar uma conta de ensaio pelo caminho do greeter (lightdm -> sudo -> aplicar criar)
+  set nome "aplicar criar (lightdm -> sudo) cria a conta de ensaio (wheel, senha definida, estado configurado)"
+  set timeout [t 180]
+  send -- {printf '%s' '{"nome_completo": "Conta de Ensaio", "utilizador": "ensaio", "senha": "Pastel-de-nata9", "autologin": false, "senha_root": false, "teclado": "pt", "fuso": "Europe/Lisbon"}' | su -s /bin/sh lightdm -c '/usr/bin/sudo -n /usr/libexec/ianinja-assistente/aplicar criar' > /tmp/criar.out 2>&1; rc=$?; echo "aplicar criar: rc=$rc $(cat /tmp/criar.out)"; id ensaio; echo "hash: $(grep '^ensaio:' /etc/shadow | cut -d: -f2 | cut -c1-3)..."; ianinja-assistente --estado; if [ $rc = 0 ] && grep -q '^OK' /tmp/criar.out && id -nG ensaio | grep -qw wheel && grep -Eq '^ensaio:\$[^:]+:' /etc/shadow && [ -d /home/ensaio ] && ianinja-assistente --estado | grep -q '^configurado'; then echo "CRI""AR_OK"; else echo "CRI""AR_FALHOU"; tail -n 5 /var/log/ianinja-assistente.log 2> /dev/null; fi}
+  send "\r"
+  set criada 0
+  expect {
+    "CRIAR_OK" { criterio $nome 1; set criada 1 }
+    "CRIAR_FALHOU" { criterio $nome 0 }
+    timeout { expirou $nome }
+  }
+  expect "TST> "
+
+  # A4. a conta autentica com a senha certa e recusa uma errada (su a partir do ninja: pede a senha)
+  set nome "Conta de ensaio autentica com a senha (su a partir do ninja) e recusa uma senha errada"
+  if {!$criada} {
+    criterio $nome 0
+    nota "conta de ensaio não criada: autenticação não testada"
+  } else {
+    set aut 0
+    set recusa 0
+    set preso 0
+    foreach {senha marca} {Pastel-de-nata9 42 senha-errada-7 43} {
+      set timeout [t 60]
+      send -- "su - ninja -c \"su ensaio -c 'id -un; echo AUTENT_\\\$((40+[expr {$marca - 40}]))'\"\r"
+      expect {
+        -re {assword:|enha:|asse:} {}
+        "AUTENT_$marca" { nota "su não pediu a senha"; expect "TST> "; continue }
+        timeout { set preso 1; break }
+      }
+      send -- "$senha\r"
+      # a mensagem de recusa do su depende da língua (pt_PT); conta como recusa voltar ao
+      # prompt sem a marca (a linha enviada só tem AUTENT_\$((40+n)), nunca a marca em si)
+      expect {
+        "AUTENT_$marca" { if {$marca == 42} { set aut 1 }; expect "TST> " }
+        "TST> " { if {$marca == 43} { set recusa 1 } }
+        timeout { set preso 1; break }
+      }
+    }
+    if {$preso} {
+      send "\003"
+      expirou $nome
+      set timeout [t 30]
+      expect "TST> "
+    } else {
+      if {!$aut} { nota "a senha certa não foi aceite" }
+      if {!$recusa} { nota "a senha errada não foi recusada" }
+      criterio $nome [expr {$aut && $recusa}]
+    }
+  }
+
+  set timeout [t 180]
+  send "poweroff\r"
+  expect {
+    eof {}
+    timeout {}
+  }
+  close $res
+  exit 0
+}
+
+# ---------------------------------------------------------------- modos bios / uefi (critérios 1-10)
+arrancar
+
+# 1. menu do GRUB
+set timeout [t 240]
+expect {
+  "ianinjapelagestao 12.4 (Live)" { criterio "GRUB mostra o menu ianinjapelagestao" 1 }
+  timeout { expirou "GRUB mostra o menu ianinjapelagestao" 1 }
+}
+# 2. initramfs monta o SquashFS
+expect {
+  "raiz overlay pronta" { criterio "Kernel arranca e o initramfs monta o SquashFS/overlay" 1 }
+  "FALHA NO ARRANQUE LIVE" { criterio "Kernel arranca e o initramfs monta o SquashFS/overlay" 0; close $res; exit 1 }
+  timeout { expirou "Kernel arranca e o initramfs monta o SquashFS/overlay" 1 }
+}
+# 3. banner do /etc/issue + login:
+set timeout [t 300]
+set banner 0
+expect {
+  "ianinjapelagestao 12.4 (LFS-based)" { set banner 1; exp_continue }
+  "login:" { criterio "Banner do /etc/issue e prompt login:" $banner }
+  timeout { expirou "Banner do /etc/issue e prompt login:" 1 }
+}
+# 4. login root
+set timeout [t 60]
+send "root\r"
+expect {
+  "assword:" {}
+  timeout { expirou "Login como root" 1 }
+}
+send "$senha_root\r"
+expect {
+  "# " {}
+  "Login incorrect" { criterio "Login como root" 0; close $res; exit 1 }
+  timeout { expirou "Login como root" 1 }
+}
+send "PS1='TST> '\r"
+expect "TST> "
+send "cat /etc/os-release\r"
+expect {
+  -re "ID=ianinjapelagestao\[\r\n]" { criterio "Login root e /etc/os-release mostra ianinjapelagestao" 1 }
+  timeout { expirou "Login root e /etc/os-release mostra ianinjapelagestao" }
+}
+expect "TST> "
+# 5. rede DHCP + wget https (desde a F8e o IP vem do NetworkManager, S33 depois do D-Bus, em vez do
+#    bootscript network: espera até 120 s; o critério 20 confirma que é mesmo o NetworkManager)
+set timeout [t 150]
+send "for i in \$(seq 120); do ip -4 addr show eth0 | grep -q 'inet ' && break; sleep 1; done; ip addr show eth0\r"
+set ip 0
+expect {
+  -re "inet 10\\.0\\.2\\.\[0-9]+" { set ip 1 }
+  timeout { set ip -1 }
+}
+expect "TST> "
+send "wget -q --spider https://www.linuxfromscratch.org && echo \"WGET\"\"_OK\" || echo \"WGET\"\"_FALHOU\"\r"
+set wg 0
+expect {
+  "WGET_OK" { set wg 1 }
+  "WGET_FALHOU" { set wg 0 }
+  timeout { set wg -1 }
+}
+if {$ip == -1 || $wg == -1} {
+  expirou "eth0 com IP via DHCP e wget https funciona"
+} else {
+  criterio "eth0 com IP via DHCP e wget https funciona" [expr {$ip && $wg}]
+}
+expect "TST> "
+# 6. sudo
+set timeout [t 30]
+send "sudo -u ninja sudo -n true && echo \"SUDO\"\"_OK\" || echo \"SUDO\"\"_FALHOU\"\r"
+expect {
+  "SUDO_OK" { criterio "sudo -u ninja sudo -n true" 1 }
+  "SUDO_FALHOU" { criterio "sudo -u ninja sudo -n true" 0 }
+  timeout { expirou "sudo -u ninja sudo -n true" }
+}
+expect "TST> "
+send "uname -a; mount | grep -E ' / |squashfs|iso9660'\r"
+expect "TST> "
+# 8. zram ativo como swap
+set timeout [t 30]
+send "cat /proc/swaps; grep -q '^/dev/zram' /proc/swaps && echo \"ZRAM\"\"_OK\" || echo \"ZRAM\"\"_FALHOU\"\r"
+expect {
+  "ZRAM_OK" { criterio "zram ativo (swap em /proc/swaps)" 1 }
+  "ZRAM_FALHOU" { criterio "zram ativo (swap em /proc/swaps)" 0 }
+  timeout { expirou "zram ativo (swap em /proc/swaps)" }
+}
+expect "TST> "
+# 10. módulos carregados automaticamente: a placa de som intel-hda (só existe nos modos bios/uefi)
+#     tem driver em módulo (snd_hda_intel); o udev tem de o ter carregado sozinho pelo modalias
+set timeout [t 60]
+send -- {for i in $(seq 20); do lsmod | grep -q '^snd_hda_intel ' && break; sleep 1; done; ls /lib/modules/$(uname -r)/kernel | head; echo "modulos: $(lsmod | tail -n +2 | wc -l) carregados"; cat /proc/asound/cards; if ls /lib/modules/$(uname -r)/kernel/drivers > /dev/null && lsmod | grep -q '^snd_hda_intel '; then echo "MOD""ULOS_OK"; else echo "MOD""ULOS_FALHOU"; fi}
+send "\r"
+expect {
+  "MODULOS_OK" { criterio "Módulos carregados automaticamente (snd_hda_intel via udev)" 1 }
+  "MODULOS_FALHOU" { criterio "Módulos carregados automaticamente (snd_hda_intel via udev)" 0 }
+  timeout { expirou "Módulos carregados automaticamente (snd_hda_intel via udev)" }
+}
+expect "TST> "
+# 12-13. Interface gráfica: o LightDM (dm:5 no inittab) arranca o Xorg no vt7 com o driver modesetting
+#        sobre o bochs-drm e o lightdm-gtk-greeter. Sem KVM o X e o greeter demoram minutos: espera
+#        até 180 s com KVM e 600 s sem KVM (em ambos os casos não ter aparecido é timeout — LENTO sem KVM);
+#        um "Fatal server error" no registo do X é falha observada.
+set espera [expr {$kvm ? 90 : 300}]
+set timeout [expr {$kvm ? 240 : 720}]
+send "N=$espera\r"
+expect "TST> "
+send -- {for i in $(seq $N); do pidof lightdm > /dev/null && { pidof Xorg || pidof X; } > /dev/null && pidof lightdm-gtk-greeter > /dev/null && break; grep -qs 'Fatal server error' /var/log/Xorg.0.log /var/log/lightdm/x-0.log && break; sleep 2; done; runlevel; grep '^id:' /etc/inittab; ps -eo pid,args | grep -E '[l]ightdm|[X]org'; if pidof lightdm > /dev/null; then echo "LIGHT""DM_OK"; else echo "LIGHT""DM_FALTA"; tail -n 5 /var/log/lightdm/lightdm.log 2>/dev/null; fi}
+send "\r"
+set ldm 0
+expect {
+  "LIGHTDM_OK" { criterio "LightDM a correr no nível 5 (pidof lightdm)" 1; set ldm 1 }
+  "LIGHTDM_FALTA" { if {$kvm} { criterio "LightDM a correr no nível 5 (pidof lightdm)" 0 } else { expirou "LightDM a correr no nível 5 (pidof lightdm)" } }
+  timeout { expirou "LightDM a correr no nível 5 (pidof lightdm)" }
+}
+expect "TST> "
+set timeout [t 60]
+send -- {L=$(ls /var/log/Xorg.0.log /var/log/lightdm/x-0.log 2>/dev/null); echo "registos do X: $L"; grep -hE 'LoadModule: "modesetting"|modeset\(0\): (Output|glamor|Modeline)|Fatal server error' $L /dev/null | head -n 8; if grep -qs 'Fatal server error' $L /dev/null; then echo "XO""RG_FATAL"; grep -h -B3 -A6 'Fatal server error' $L /dev/null | head -n 20; elif { pidof Xorg || pidof X; } > /dev/null && grep -Eqs 'LoadModule: "modesetting"|modeset\(0\)' $L /dev/null; then if pidof lightdm-gtk-greeter > /dev/null; then echo "XO""RG_OK"; else echo "XO""RG_SEMGREETER"; tail -n 8 /var/log/lightdm/seat0-greeter.log 2>/dev/null; fi; else echo "XO""RG_FALTA"; ls -l /dev/dri 2>&1; tail -n 8 /var/log/lightdm/lightdm.log /var/log/lightdm/x-0.log 2>/dev/null; fi}
+send "\r"
+set nome "Xorg arrancou (modesetting, sem Fatal server error) e greeter ativo"
+set xorg 0
+expect {
+  "XORG_OK" { criterio $nome 1; set xorg 1 }
+  "XORG_FATAL" { criterio $nome 0 }
+  "XORG_SEMGREETER" { if {$kvm} { criterio $nome 0; nota "Xorg a correr mas sem lightdm-gtk-greeter" } else { expirou $nome } }
+  "XORG_FALTA" { if {$kvm && $ldm} { criterio $nome 0 } else { expirou $nome } }
+  timeout { expirou $nome }
+}
+expect "TST> "
+# captura do greeter (opcional): dá tempo ao greeter para desenhar o ecrã
+if {$xorg} {
+  after [expr {$kvm ? 10000 : 60000}]
+  captura
+}
+# 14. tipos de letra e tema
+set timeout [t 120]
+send -- {fc-list | grep -i inter | head -n 3; ls -d /usr/share/themes/WhiteSur-Light/gtk-3.0; if fc-list : family | grep -qi '^inter' && [ -d /usr/share/themes/WhiteSur-Light/gtk-3.0 ]; then echo "TE""MA_OK"; else echo "TE""MA_FALHOU"; fi}
+send "\r"
+expect {
+  "TEMA_OK" { criterio "Fonte Inter (fc-list) e tema /usr/share/themes/WhiteSur-Light" 1 }
+  "TEMA_FALHOU" { criterio "Fonte Inter (fc-list) e tema /usr/share/themes/WhiteSur-Light" 0 }
+  timeout { expirou "Fonte Inter (fc-list) e tema /usr/share/themes/WhiteSur-Light" }
+}
+expect "TST> "
+# 15-19. Aplicações da F8e, em grupos: cada verificação corre com a função chk da shell da VM
+#        (timeout por comando: 120 s com KVM, 900 s sem KVM; mostra o início da saída e, se falhar,
+#        o comando, o código de saída e o fim da saída) e o grupo termina com "fim <MARCA>", que
+#        escreve <MARCA>_OK ou <MARCA>_FALHOU (o eco da linha enviada não contém o marcador).
+#        O que é do utilizador corre como ninja (su - ninja: com o /etc/profile, como na sessão).
+#        Sem rede obrigatória: o acesso ao Flathub é só INFO. Numa ISO sem a F8e falham limpos
+#        (comando inexistente = código 127 = FAIL do grupo), sem prender o teste.
+set ct [expr {$kvm ? 120 : 900}]
+set timeout [t 60]
+send -- "CT=$ct; "
+send -- {chk() { timeout $CT "$@" < /dev/null > /tmp/chk.out 2>&1; rc=$?; head -n 4 /tmp/chk.out; if [ $rc != 0 ]; then echo "[falhou rc=$rc] $*"; [ $(wc -l < /tmp/chk.out) -gt 4 ] && tail -n 3 /tmp/chk.out; OK=0; fi; }; fim() { if [ "$OK" = 1 ]; then echo "${1}_OK"; else echo "${1}_FALHOU"; fi; }}
+send "\r"
+expect "TST> "
+proc grupo {nome marca cmd} {
+  global spawn_id timeout kvm
+  set timeout [expr {$kvm ? 360 : 2700}]
+  send -- "OK=1; $cmd; fim $marca\r"
+  expect {
+    "${marca}_OK" { criterio $nome 1 }
+    "${marca}_FALHOU" { criterio $nome 0 }
+    timeout { expirou $nome }
+  }
+  expect "TST> "
+}
+# 15. instaladores de aplicações e de ferramentas (só a lista/estado: nada é descarregado)
+grupo "Instaladores: instalar-aplicacoes -l, instalar-ferramentas -l, instalar-tudo-click.sh e autostart" APPS \
+  {chk su - ninja -c 'instalar-aplicacoes -l'; chk su - ninja -c 'instalar-ferramentas -l'; chk bash -n /usr/local/bin/instalar-tudo-click.sh; chk test -x /usr/local/bin/instalar-tudo-click.sh; chk grep -qx 'Exec=/usr/local/bin/instalar-tudo-click.sh' /etc/xdg/autostart/instalar-tudo-default.desktop}
+# 16. programação: Node.js/npm (prefixo global do ninja em ~/.npm-global), módulos Python e GDB
+grupo "Programação: node e npm, python3 (sqlite3, requests, numpy, cv2) e gdb" PROG \
+  {chk node --version; chk npm --version; chk python3 -I -c 'import sqlite3, requests, numpy, cv2; print("sqlite3", sqlite3.sqlite_version, "requests", requests.__version__, "numpy", numpy.__version__, "cv2", cv2.__version__)'; chk gdb --version; chk su - ninja -c 'test "$(npm config get prefix)" = "$HOME/.npm-global"'}
+# 17. Flatpak e Loja: remote flathub do sistema (ficheiro local), sandbox bwrap como utilizador normal
+#     (namespaces de utilizador do kernel arrancado — no chroot da F8e não se pôde testar) e loja --verificar
+grupo "Flatpak: flatpak e bwrap, remote flathub do sistema, sandbox bwrap como ninja e loja --verificar" LOJA \
+  {chk flatpak --version; chk bwrap --version; chk sh -c 'flatpak remotes --system --columns=name | grep -x flathub'; chk su - ninja -c 'bwrap --ro-bind / / --dev /dev --proc /proc --unshare-all true'; chk su - ninja -c 'loja --verificar'}
+# INFO (precisa da Internet): o Flathub responde?
+set timeout [t 60]
+send -- {if timeout 30 wget -q --spider https://dl.flathub.org/repo/flathub.flatpakrepo; then echo "FLAT""HUB_REDE_OK"; else echo "FLAT""HUB_REDE_FALHOU"; fi}
+send "\r"
+expect {
+  "FLATHUB_REDE_OK" { nota "Flathub acessível pela rede (dl.flathub.org) — só informativo" }
+  "FLATHUB_REDE_FALHOU" { nota "Flathub inacessível pela rede (sem Internet?) — só informativo, não é critério" }
+  timeout { nota "Flathub: sem resposta da rede — só informativo, não é critério" }
+}
+expect "TST> "
+# 18. drivers e hardware: no QEMU não há GPU com Vulkan, por isso tem de aparecer o lavapipe (llvmpipe);
+#     sem placa NVIDIA o instalar-driver-nvidia -l tem de dizer "nenhuma" com saída limpa
+grupo "Drivers: vulkaninfo (lavapipe), info-hardware, instalar-driver-nvidia -l, bluetoothctl, headsetcontrol e xfce4-screenshooter" DRV \
+  {chk sh -c 'vulkaninfo --summary 2> /dev/null | grep -iE "deviceName|driverName" | sort -u; vulkaninfo --summary 2> /dev/null | grep -qi llvmpipe'; chk info-hardware; chk sh -c 'instalar-driver-nvidia -l > /tmp/nv.out 2>&1; rc=$?; cat /tmp/nv.out; [ $rc = 0 ] && grep -q nenhuma /tmp/nv.out && ! grep -qiE "erro|not found|No such file" /tmp/nv.out'; chk bluetoothctl --version; chk headsetcontrol --help; chk sh -c 'xfce4-screenshooter --version 2> /dev/null || xfce4-screenshooter --help > /dev/null'}
+# 19. face-finder (OpenCV/YuNet) em todas as fotografias incluídas: ≥1 rosto e nenhuma imagem ilegível
+grupo "face-finder encontra rostos nas fotografias incluídas (/usr/share/face-finder/fotos)" FACE \
+  {rm -rf /tmp/ff-teste; chk face-finder /usr/share/face-finder/fotos -o /tmp/ff-teste; chk python3 -I -c 'import json; d = json.load(open("/tmp/ff-teste/resultados.json")); c = [len(i["rostos"]) for i in d["imagens"]]; print("face-finder:", d["total_rostos"], "rostos em", len(c), "fotos,", sum(1 for n in c if n), "com rosto"); assert d["total_rostos"] >= 1 and not any("erro" in i for i in d["imagens"])'; chk test -s /tmp/ff-teste/relatorio.html; rm -rf /tmp/ff-teste}
+# 20. Rede (F8e, bloco 08): o NetworkManager liga o cabo sozinho. A VM tem -nic user,model=e1000 (eth0);
+#     o bootscript network (dhcpcd) já não pode arrancar (nenhum link S..network no nível do teste, nem
+#     em rc3.d/rc5.d); nm-online espera até 60 s pelo fim do arranque do NM; o estado geral é
+#     "connected" (sem verificação de conectividade); eth0:connected, IP 10.0.2.x e nameserver no
+#     /etc/resolv.conf (escrito pelo NM). Sem sessão Xfce no teste (só o greeter): o nm-applet não é
+#     testado, só o /etc/xdg/autostart/nm-applet.desktop.
+grupo "Rede: NetworkManager liga o cabo sozinho (eth0 connected, IP 10.0.2.x, resolv.conf, sem S..network, autostart do nm-applet)" REDE \
+  {chk pidof NetworkManager; chk sh -c 'set -- $(runlevel); echo "nível $2"; ls /etc/rc.d/rc3.d /etc/rc.d/rc5.d /etc/rc.d/rc$2.d | grep -i network; ! ls /etc/rc.d/rc3.d /etc/rc.d/rc5.d /etc/rc.d/rc$2.d | grep -Eq "^S[0-9]+network$"'; chk nm-online -s -t 60; chk sh -c 'S=$(nmcli -t -f STATE general); echo "estado geral: $S"; [ "$S" = connected ]'; chk sh -c 'nmcli -t -f DEVICE,STATE device; nmcli -t -f DEVICE,STATE device | grep -qx eth0:connected'; chk sh -c 'ip -4 addr show eth0 | grep "inet 10\.0\.2\."'; chk grep -E '^nameserver' /etc/resolv.conf; chk test -f /etc/xdg/autostart/nm-applet.desktop}
+# 21. Assistente de 1.º arranque (F8e, bloco 09) desligado pela cadeia SMBIOS que o QEMU recebe em
+#     arrancar (-smbios type=11,value=ianinja.assistente=0); como root o contas.py lê
+#     /sys/firmware/dmi/entries/11-*/raw. Mostra também a linha do greeter no registo do LightDM.
+grupo "Assistente de 1.º arranque desligado pela cadeia SMBIOS (ianinja-assistente --estado)" ASSIST \
+  {chk sh -c 'grep -h "ianinja-assistente: estado" /var/log/lightdm/*.log 2> /dev/null | tail -n 1; E=$(ianinja-assistente --estado); echo "$E"; [ "$E" = "desligado (ianinja.assistente=0 nas cadeias OEM do SMBIOS)" ]'}
+# 9. IA responde (llama.cpp no CPU): resposta não vazia antes de o prompt voltar
+#    (stderr do ia-perguntar vai para /tmp/ia-erro.log; as últimas linhas são mostradas se falhar)
+set timeout [expr {$kvm ? 180 : 900}]
+send -- {R=$(ia-perguntar "Responde apenas com a palavra OK." 2>/tmp/ia-erro.log); rc=$?; if [ -n "$(printf %s "$R" | tr -d '[:space:]')" ]; then printf 'IA''_RESPOSTA<%s>\n' "$R"; else echo "IA""_FALHOU rc=$rc"; tail -n 5 /tmp/ia-erro.log; fi}
+send "\r"
+set ia_preso 0
+expect {
+  -re {IA_RESPOSTA<([^>\r\n]*)>} { criterio "IA responde (ia-perguntar)" 1; nota "resposta da IA: $expect_out(1,string)" }
+  "IA_FALHOU" { criterio "IA responde (ia-perguntar)" 0 }
+  timeout { expirou "IA responde (ia-perguntar)"; set ia_preso 1 }
+}
+if {$ia_preso} { send "\003" }
+set timeout [t 60]
+expect "TST> "
+# 7. poweroff limpo
+set timeout [t 180]
+send "poweroff\r"
+expect {
+  eof { criterio "poweroff encerra limpo" 1 }
+  timeout { expirou "poweroff encerra limpo" }
+}
+close $res

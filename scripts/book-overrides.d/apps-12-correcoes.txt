@@ -1,0 +1,7 @@
+# F8e — bloco 12: correções do teste em hardware real. Ver scripts/apps/decisoes-12.txt.
+# página                                        tipo     blocos  # motivo
+blfs/multimedia/wireplumber                     replace  3       # a documentação só existe com Sphinx (não instalado): mv só se o diretório existir
+blfs/multimedia/wireplumber                     replace  4       # sem PulseAudio instalado não há /etc/pulse/client.conf (o sed falharia); ficam só os rm
+blfs/multimedia/wireplumber                     replace  5       # lançador: o ciclo de espera do livro ([ $(pgrep) = "" ]) nunca espera; espera-se pelo socket pipewire-0
+blfs/multimedia/v4l-utils                       replace  4       # o v4l2gl só é compilado com GLU (não instalado): copiar só os programas que existam
+blfs/gnome/gnome-keyring                        replace  1       # -D manpage=false: as páginas de manual exigem docbook-xsl (não instalado) e o xsltproc tentaria a rede

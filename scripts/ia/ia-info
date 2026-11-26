@@ -1,0 +1,74 @@
+#!/bin/bash
+# ia-info — mostra o que o ianinjapelagestao deteta para correr IA local: CPU (AVX2/AVX-512...),
+# RAM, zram/swap, modelos e versão do llama.cpp.  Com -b corre um teste curto de velocidade.
+# Uso: ia-info [-b]
+source /usr/share/ia/ia-comum.sh
+
+bench=0
+case "${1:-}" in
+  -b|--bench) bench=1 ;;
+  -h|--help) echo "Uso: ia-info [-b]   (-b: teste rápido de velocidade com llama-bench)"; exit 0 ;;
+  "") ;;
+  *) ia_erro "opção desconhecida $1 (ver ia-info -h)" ;;
+esac
+
+echo "== CPU"
+modelo=$(awk -F': ' '/^model name/{print $2; exit}' /proc/cpuinfo)
+echo "Modelo:          ${modelo:-desconhecido}"
+echo "Núcleos:         $(ia_threads) físicos, $(nproc) lógicos"
+flags=" $(awk -F': ' '/^flags/{print $2; exit}' /proc/cpuinfo) "
+ext=""
+for f in sse4_2 avx f16c fma avx2 bmi2 avx_vnni avx512f avx512bw avx512_vbmi avx512_vnni avx512_bf16 amx_tile amx_int8; do
+  case $flags in *" $f "*) ext+=" $f" ;; esac
+done
+echo "Extensões:      ${ext:- (nenhuma relevante)}"
+case $flags in
+  *" avx512f "*) nivel="AVX-512" ;;
+  *" avx2 "*)    nivel="AVX2" ;;
+  *" avx "*)     nivel="AVX" ;;
+  *)             nivel="SSE (sem AVX — mais lento)" ;;
+esac
+echo "Melhor nível:    $nivel"
+if [ -d /usr/lib/ggml ]; then
+  echo "Variantes ggml:  $(ls /usr/lib/ggml 2> /dev/null | sed -n 's/^libggml-cpu-\(.*\)\.so$/\1/p' | tr '\n' ' ')"
+  echo "                 (o llama.cpp escolhe a melhor variante suportada por este CPU no arranque)"
+fi
+
+echo
+echo "== Memória"
+free -h | sed 's/^/  /'
+echo "Disponível:      $(ia_mem_livre) MiB"
+if grep -q '^/' /proc/swaps 2> /dev/null; then
+  echo "Swap ativa:"
+  tail -n +2 /proc/swaps | awk '{printf "  %-20s %-10s %s KiB\n", $1, $2, $3}'
+else
+  echo "Swap ativa:      nenhuma"
+fi
+for z in /sys/block/zram*; do
+  [ -e "$z/disksize" ] || continue
+  echo "zram:            $(basename "$z") $(( $(cat "$z/disksize") / 1048576 )) MiB ($(cat "$z/comp_algorithm" 2> /dev/null | grep -o '\[[^]]*\]' || true))"
+done
+
+echo
+echo "== Modelos"
+ia_listar
+if [ -e "$IA_PREDEFINIDO" ]; then
+  echo "Contexto sugerido para o predefinido: $(ia_contexto "$(readlink -f "$IA_PREDEFINIDO")") tokens"
+fi
+
+echo
+echo "== llama.cpp"
+llama-cli --version 2>&1 | grep -v '^$' | head -3 | sed 's/^/  /'
+[ -r /usr/share/ia/compilacao.txt ] && sed 's/^/  /' /usr/share/ia/compilacao.txt
+if pidof llama-server > /dev/null; then echo "  servidor: a correr (ia-servidor status)"; else echo "  servidor: parado (ia-servidor start)"; fi
+
+if [ $bench -eq 1 ]; then
+  M=$(ia_modelo "") || exit 1
+  echo
+  echo "== Teste de velocidade (llama-bench, $(basename "$M"), $(ia_threads) threads)"
+  llama-bench -m "$M" -t "$(ia_threads)" -p 64 -n 32 -r 1 2> /dev/null
+else
+  echo
+  echo "Teste de velocidade: ia-info -b"
+fi
+exit 0

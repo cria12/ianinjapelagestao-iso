@@ -1,0 +1,28 @@
+# F8e — bloco 5: loja de aplicações = Flatpak + Flathub, com a "Loja" gráfica (Python + GTK 3).
+# OSTree e Flatpak não estão no BLFS 12.4 (compilados de fonte, SHA-256); o resto são páginas do
+# livro. Formato id|comando. Ver scripts/apps/decisoes-05.txt.
+libseccomp|pacote general/libseccomp                       # filtros seccomp da sandbox do Flatpak
+bubblewrap|pacote general/bubblewrap                       # bwrap: a sandbox (namespaces de utilizador)
+xdg-dbus-proxy|pacote general/xdg-dbus-proxy               # filtra o D-Bus visto pelas aplicações
+fuse3|pacote postlfs/fuse                                  # fusermount3 (portal de documentos, rofiles-fuse)
+libassuan|pacote general/libassuan                         # requerido pelo gpgme e pelo GnuPG
+libksba|pacote general/libksba                             # requerido pelo GnuPG
+npth|pacote general/npth                                   # requerido pelo GnuPG
+pinentry|pacote general/pinentry                           # recomendado pelo GnuPG (pinentry-curses/tty)
+gnupg|pacote postlfs/gnupg                                 # gpg/gpgv: o gpgme verifica as assinaturas do Flathub com ele
+gpgme|pacote postlfs/gpgme                                 # requerido pelo OSTree e pelo Flatpak
+libxmlb|pacote general/libxmlb                             # requerido pelo AppStream
+appstream|pacote general/appstream                         # requerido pelo Flatpak (metadados das aplicações)
+json-glib|pacote general/json-glib                         # requerido pelo Flatpak e pelo xdg-desktop-portal
+pyparsing|pacote general/python-modules@pyparsing          # o meson do Flatpak exige o módulo pyparsing
+ostree|loja_ostree                                         # libostree 2026.6 (fonte, SHA-256)
+flatpak|loja_flatpak                                       # Flatpak 1.18.4 (fonte, SHA-256) + /etc/profile.d/flatpak.sh
+gstreamer|pacote multimedia/gstreamer10                    # gst-pbutils é requerido pelo xdg-desktop-portal
+gst-plugins-base|pacote multimedia/gst10-plugins-base      # idem (gstreamer-pbutils-1.0)
+pipewire|pacote multimedia/pipewire                        # libpipewire requerida pelo xdg-desktop-portal (sem daemon a correr)
+gsettings-desktop-schemas|pacote gnome/gsettings-desktop-schemas   # portal Settings/Lockdown do xdg-desktop-portal-gtk
+xdg-desktop-portal|pacote x/xdg-desktop-portal             # portais (abrir ficheiros, abrir links...) para as apps Flatpak
+xdg-desktop-portal-gtk|pacote x/xdg-desktop-portal-gtk     # backend GTK 3 dos portais (no Xfce)
+flathub|loja_flathub                                       # remote Flathub (sistema e ninja --user), tema nas apps, portals.conf
+loja|loja_instalar                                         # /usr/bin/loja + atalho + ícone + dock
+loja-verificar|loja_verificar                              # ferramentas presentes; loja --verificar como ninja

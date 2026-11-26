@@ -1,0 +1,24 @@
+# F8e — bloco 3: drivers e periféricos. Headers do kernel (módulos externos), Vulkan (Mesa com anv/
+# hasvk/radv/lavapipe + vulkaninfo), driver NVIDIA a pedido, OpenRazer (Razer), hidapi + HeadsetControl
+# (HyperX, SteelSeries, Logitech...), BlueZ + Blueman, xfce4-screenshooter e info-hardware.
+# Formato id|comando. Ver scripts/apps/decisoes-03.txt.
+drv-fontes|drivers_fontes                                  # downloads fora do livro (SHA-256 fixados)
+kernel-headers|drivers_kernel_headers                      # /usr/src/linux-headers-6.16.1 + /lib/modules/6.16.1/build
+vulkan-headers|pacote x/vulkan-headers                     # requerido pelo Vulkan-Loader
+vulkan-loader|pacote x/vulkan-loader                       # libvulkan.so.1
+glslang|pacote x/glslang                                   # glslangValidator: requerido pelos drivers Vulkan do Mesa
+mesa-vulkan|drivers_mesa_vulkan                            # Mesa da F8d recompilado com vulkan-drivers=intel,intel_hasvk,amd,swrast
+vulkaninfo|drivers_vulkan_tools                            # Vulkan-Tools 1.4.321: só o vulkaninfo
+nvidia-a-pedido|drivers_nvidia_comando                     # /usr/bin/instalar-driver-nvidia + atalho só com placa NVIDIA
+patchelf|pacote general/patchelf                        # requerido pelo meson_python (dbus-python): reescreve o RPATH no wheel
+dbus-python|pacote general/python-modules@dbus-python      # requerido pelo openrazer-daemon
+openrazer|drivers_openrazer                                # módulos razer*, udev, plugdev, openrazer-daemon, comando openrazer
+hidapi|drivers_hidapi                                      # requerido pelo HeadsetControl
+headsetcontrol|drivers_headsetcontrol                      # bateria/sidetone/luzes de headsets USB
+libical|pacote general/libical                             # requerido pelo BlueZ
+bluez|pacote general/bluez                                 # bluetoothd, bluetoothctl, obexd
+bluez-bootscript|bootscripts bluetooth                     # /etc/rc.d/init.d/bluetooth (o livro: make install-bluetooth)
+blueman|drivers_blueman                                    # gestor de Bluetooth GTK3 (applet no painel)
+screenshooter|drivers_screenshooter                        # xfce4-screenshooter 1.11.3; Print -> -f, Shift+Print -> -r
+info-hardware|drivers_info_hardware                        # comando info-hardware + atalho
+drv-verificar|drivers_verificar                            # ficheiros, ldd, vermagic dos módulos externos

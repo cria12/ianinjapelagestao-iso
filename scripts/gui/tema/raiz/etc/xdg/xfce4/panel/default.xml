@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ianinjapelagestao: configuração inicial do xfce4-panel 4.20 (substitui a do pacote).
+  No primeiro arranque de cada utilizador sem canal xfce4-panel, o xfce4-panel copia este ficheiro
+  para ~/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml sem perguntar nada; a partir
+  daí o utilizador pode mudar ou apagar qualquer elemento (o que não seria possível se os painéis
+  estivessem em /etc/xdg/xfce4/xfconf, ver scripts/gui/decisoes-04.txt).
+
+  panel-1: barra superior fina a toda a largura (p=6, length 100).
+           menu de aplicações (logótipo da distro) | menu de janelas (ícone da janela ativa) |
+           espaço | área de notificação | relógio | sair/desligar
+  panel-2: dock centrada em baixo (p=10), ajustada ao conteúdo, ícones de 48 px,
+           esconde-se de forma inteligente (autohide-behavior 1) quando uma janela a tapa.
+           Cantos arredondados e fundo translúcido: ~/.config/gtk-3.0/gtk.css (de /etc/skel).
+-->
+
+<channel name="xfce4-panel" version="1.0">
+  <property name="configver" type="int" value="2"/>
+  <property name="panels" type="array">
+    <value type="int" value="1"/>
+    <value type="int" value="2"/>
+    <property name="dark-mode" type="bool" value="false"/>
+    <property name="panel-1" type="empty">
+      <property name="position" type="string" value="p=6;x=0;y=0"/>
+      <property name="length" type="double" value="100"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="size" type="uint" value="28"/>
+      <property name="icon-size" type="uint" value="16"/>
+      <property name="enable-struts" type="bool" value="true"/>
+      <property name="background-style" type="uint" value="1"/>
+      <property name="background-rgba" type="array">
+        <value type="double" value="0.968627"/>
+        <value type="double" value="0.968627"/>
+        <value type="double" value="0.972549"/>
+        <value type="double" value="0.82"/>
+      </property>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="1"/>
+        <value type="int" value="2"/>
+        <value type="int" value="3"/>
+        <value type="int" value="4"/>
+        <value type="int" value="5"/>
+        <value type="int" value="6"/>
+        <value type="int" value="7"/>
+      </property>
+    </property>
+    <property name="panel-2" type="empty">
+      <property name="position" type="string" value="p=10;x=0;y=0"/>
+      <property name="length" type="double" value="1"/>
+      <property name="length-adjust" type="bool" value="true"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="size" type="uint" value="64"/>
+      <property name="icon-size" type="uint" value="48"/>
+      <property name="autohide-behavior" type="uint" value="1"/>
+      <property name="background-style" type="uint" value="1"/>
+      <property name="background-rgba" type="array">
+        <value type="double" value="0.968627"/>
+        <value type="double" value="0.968627"/>
+        <value type="double" value="0.972549"/>
+        <value type="double" value="0.55"/>
+      </property>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="11"/>
+      </property>
+    </property>
+  </property>
+  <property name="plugins" type="empty">
+    <property name="plugin-1" type="string" value="applicationsmenu">
+      <property name="button-icon" type="string" value="ianinja-logo-symbolic"/>
+      <property name="show-button-title" type="bool" value="false"/>
+      <property name="show-generic-names" type="bool" value="false"/>
+      <property name="show-menu-icons" type="bool" value="true"/>
+      <property name="small" type="bool" value="true"/>
+    </property>
+    <property name="plugin-2" type="string" value="windowmenu">
+      <property name="style" type="uint" value="0"/>
+      <property name="workspace-actions" type="bool" value="false"/>
+      <property name="all-workspaces" type="bool" value="false"/>
+    </property>
+    <property name="plugin-3" type="string" value="separator">
+      <property name="expand" type="bool" value="true"/>
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-4" type="string" value="systray">
+      <property name="square-icons" type="bool" value="true"/>
+      <property name="symbolic-icons" type="bool" value="true"/>
+      <property name="icon-size" type="int" value="16"/>
+    </property>
+    <property name="plugin-5" type="string" value="clock">
+      <property name="mode" type="uint" value="2"/>
+      <property name="digital-layout" type="uint" value="3"/>
+      <property name="digital-time-format" type="string" value="%a %d %b  %H:%M"/>
+      <property name="digital-time-font" type="string" value="Inter Medium 10"/>
+      <property name="tooltip-format" type="string" value="%A, %d de %B de %Y"/>
+    </property>
+    <property name="plugin-6" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-7" type="string" value="actions">
+      <property name="appearance" type="uint" value="0"/>
+      <property name="ask-confirmation" type="bool" value="true"/>
+      <property name="items" type="array">
+        <value type="string" value="+logout-dialog"/>
+        <value type="string" value="-lock-screen"/>
+        <value type="string" value="-switch-user"/>
+        <value type="string" value="-separator"/>
+        <value type="string" value="-suspend"/>
+        <value type="string" value="-hibernate"/>
+        <value type="string" value="-hybrid-sleep"/>
+        <value type="string" value="-shutdown"/>
+        <value type="string" value="-restart"/>
+        <value type="string" value="-logout"/>
+      </property>
+    </property>
+    <property name="plugin-11" type="string" value="docklike"/>
+  </property>
+</channel>

@@ -1,0 +1,16 @@
+# F8e — bloco 8: rede. NetworkManager (cabo automático, Wi-Fi, adaptadores USB ligados a quente,
+# várias placas) com o applet na área de notificação do painel, nmtui/nmcli; wpa_supplicant
+# recompilado com D-Bus; o bootscript network antigo (dhcpcd em eth0) deixa de arrancar.
+# Formato id|comando. Ver scripts/apps/decisoes-08.txt.
+rede-fontes|rede_fontes                                    # newt do espelho do BLFS (o URL do livro dá 404; SHA-256 fixado, MD5 do livro)
+wpa-dbus|rede_wpa_supplicant_dbus                          # wpa_supplicant 2.11 do livro, agora com a interface D-Bus (blocos 2 e 5)
+libndp|pacote basicnet/libndp                              # requerido pelo NetworkManager
+slang|pacote general/slang                                 # requerido pelo newt
+newt|pacote general/newt                                   # requerido pelo nmtui
+networkmanager|pacote basicnet/networkmanager              # NetworkManager 1.54.0, nmcli, nmtui; polkit (netdev + sessão ativa)
+nm-bootscript|bootscripts networkmanager                   # /etc/rc.d/init.d/networkmanager, S33 em rc2-5 (depois do S29dbus)
+gcr|pacote gnome/gcr                                       # Gcr 3 (requerido pelo libnma: certificados de Wi-Fi empresarial/eduroam)
+libnma|pacote basicnet/libnma                              # diálogos GTK3 do NetworkManager
+nm-applet|pacote basicnet/network-manager-applet           # nm-applet (ícone na barra superior) e nm-connection-editor
+rede-configurar|rede_configurar                            # desliga S20network, conf.d, ligar-wifi via nmcli, regra udev do modo CD, info-hardware
+rede-verificar|rede_verificar                              # binários, ldd, bootscript, polkit, autostart, D-Bus, módulos e firmware Wi-Fi USB

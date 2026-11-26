@@ -1,0 +1,26 @@
+## F8d — Rust: LLVM do sistema, /opt/rustc e rede no chroot
+O Rustc 1.89.0 é compilado como o livro indica: contra o LLVM do sistema (bootstrap.toml com llvm-config = /usr/bin/llvm-config e link-shared = true; o LLVM do bloco 1 foi compilado com LLVM_LINK_LLVM_DYLIB=ON), só com o alvo X86, sem documentação, e instalado em /opt/rustc-1.89.0 com a ligação simbólica /opt/rustc e /etc/profile.d/rustc.sh (carregado por scripts/blfs-env.sh nas páginas seguintes). Como se compila como root no chroot, os blocos "as root" (mkdir/ln -svfn em /opt, x.py install) correm diretamente e as variáveis LIB{SSH2,SQLITE3}_SYS_USE_PKG_CONFIG mantêm-se no mesmo processo (não há sudo a filtrá-las), pelo que o cargo usa o libssh2 e o SQLite do sistema, compilados logo antes. O tarball rustc-src já traz as crates em vendor/, mas o x.py descarrega sempre o compilador stage0 de static.rust-lang.org, por isso o passo corre com rede (pacote_rede).
+
+## F8d — Rust: test suite omitida
+A test suite do Rust (blocos 4 e 5) não corre: acrescenta cerca de 15 SBU e 7,4 GB de disco, tem falhas conhecidas documentadas no próprio livro (ui, bootstrap fora do repositório Git, musl-default-linking, linker-warning) e serve sobretudo quem desenvolve crates. O Rust só é usado aqui para compilar o cargo-c e o librsvg, cujas próprias compilações validam o compilador.
+
+## F8d — cargo-c e librsvg: crates descarregadas no chroot
+O cargo-c não traz as dependências: o livro descarrega o Cargo.lock da versão 0.10.15 com curl e o cargo build vai buscar as crates a crates.io; o librsvg 2.61.0 também precisa de Internet para as crates (o livro avisa na secção de dependências). Ambos correm com rede (pacote_rede). O bloco do Cargo.lock foi substituído para verificar também o MD5 que o livro indica no texto (57fab87782a5f9ef46fcbddc44d425b1); as crates ficam fixadas pelas somas do Cargo.lock. A test suite do librsvg corre com falhas toleradas (o livro conhece uma falha).
+
+## F8d — gdk-pixbuf antes do librsvg: cache dos loaders regenerada
+O gdk-pixbuf é instalado antes do librsvg (o librsvg precisa dele), pelo que a cache loaders.cache gerada na instalação do gdk-pixbuf não inclui o loader SVG que o librsvg instala depois. O livro não volta a gerar a cache; acrescentou-se o passo pixbuf-loaders (função gdk_pixbuf_loaders em scripts/gui/funcoes-02.sh) que corre gdk-pixbuf-query-loaders --update-cache e confirma que image/svg ficou registado — sem isso o GTK3 não carrega os ícones simbólicos. O bloco 4 do gdk-pixbuf (o mesmo comando, só necessário com DESTDIR) mantém-se por ser inofensivo.
+
+## F8d — GTK3: X11 + Wayland, sem páginas de manual
+O GTK3 é compilado com os backends X11 e Wayland (explícitos; são os valores por omissão) e o Broadway do livro. A opção -D man=true do livro passa a -D man=false: as páginas de manual precisam do docbook-xsl-nons, que não está instalado (o xsltproc com --nonet falharia a meio da compilação). gtk-query-immodules-3.0 --update-cache e glib-compile-schemas correm como no livro. Os exemplos ~/.config/gtk-3.0/settings.ini e gtk.css (blocos 5 e 6) são omitidos: o tema, os ícones e a fonte são configurados para todo o sistema em scripts/gui/tema.
+
+## F8d — Documentação opcional e Gi-DocGen
+Não se descarregam as documentações opcionais do SQLite (sqlite-doc-*.zip, que também precisaria de unzip) nem do NASM (nasm-*-xdoc.tar.xz): os respetivos blocos de extração e instalação são omitidos. Os blocos de documentação da API do Pango e do gdk-pixbuf são omitidos por precisarem do Gi-DocGen, que não está instalado.
+
+## F8d — shared-mime-info sem xdgmime
+O tarball xdgmime é um download opcional que só serve para correr a test suite do shared-mime-info; não é descarregado e o bloco que o compila é omitido. A base de dados MIME é gerada na instalação (-D update-mimedb=true, como no livro).
+
+## F8d — SQLite: opções do livro e módulo sqlite3 do Python
+O SQLite é compilado com as opções do livro (--enable-fts4/5 e CPPFLAGS com SQLITE_ENABLE_COLUMN_METADATA, UNLOCK_NOTIFY, DBSTAT_VTAB e SECURE_DELETE), necessárias ao Rust/cargo e a outras aplicações. O livro recomenda recompilar o Python depois do SQLite para criar o módulo sqlite3; não se faz aqui porque nenhuma página da interface gráfica precisa dele.
+
+## F8d — Testes de Wayland, libxkbcommon, GTK3 e at-spi2-core
+Estas test suites não estão em blocos de comandos do livro (só no texto) e precisam de coisas ausentes no chroot (Xvfb, sessão gráfica, sessão D-Bus a correr, XDG_RUNTIME_DIR), por isso não correm.

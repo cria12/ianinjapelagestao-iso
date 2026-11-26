@@ -1,0 +1,9 @@
+# Tema e aspeto ao estilo do macOS — depois de todas as páginas de scripts/gui/ordem.txt
+tema-descarregar|tema_descarregar
+tema-docklike|tema_docklike
+tema-gtk|tema_gtk
+tema-icones|tema_icones
+tema-cursores|tema_cursores
+tema-fontes|tema_fontes
+tema-config|tema_config
+tema-verificar|tema_verificar

@@ -1,0 +1,25 @@
+# F8d — bloco 2: GTK3 e dependências (inclui Rust para o librsvg). Formato id|comando.
+at-spi2-core|pacote x/at-spi2-core
+fribidi|pacote general/fribidi
+cairo|pacote x/cairo
+pango|pacote x/pango
+libssh2|pacote general/libssh2
+sqlite|pacote server/sqlite
+rust|pacote_rede general/rust                 # o x.py descarrega o compilador stage0
+cargo-c|pacote_rede general/cargo-c           # Cargo.lock + crates de crates.io
+nasm|pacote general/nasm
+yasm|pacote general/yasm
+libjpeg|pacote general/libjpeg
+shared-mime-info|pacote general/shared-mime-info
+libtiff|pacote general/libtiff
+gdk-pixbuf|pacote x/gdk-pixbuf
+librsvg|pacote_rede general/librsvg           # o cargo descarrega as crates
+pixbuf-loaders|gdk_pixbuf_loaders             # regista o loader SVG do librsvg
+hicolor-icon-theme|pacote x/hicolor-icon-theme
+iso-codes|pacote general/iso-codes
+wayland|pacote general/wayland
+wayland-protocols|pacote general/wayland-protocols
+libxkbcommon|pacote general/libxkbcommon
+gtk3|pacote x/gtk3
+adwaita-icon-theme|pacote x/adwaita-icon-theme
+startup-notification|pacote x/startup-notification

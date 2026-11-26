@@ -1,0 +1,5 @@
+# F8e — bloco 9: Assistente de configuração do 1.º arranque (pede nome, utilizador, senha, teclado e
+# fuso; cria a conta e entra nela). Python 3 + GTK 3 como greeter do LightDM; nada é compilado.
+# Formato id|comando. Ver scripts/apps/decisoes-09.txt.
+assistente-instalar|assistente_instalar        # /usr/share/ianinja-assistente, greeter, sudoers do lightdm, lightdm.conf.d/60-*
+assistente-verificar|assistente_verificar      # sudo do lightdm só para o aplicar, GTK+LightDM como lightdm, conta criada numa cópia de /etc

@@ -1,0 +1,13 @@
+#!/bin/sh
+# ianinja-bluetooth-hotplug — chamado pelo udev (/etc/udev/rules.d/90-ianinja-bluetooth.rules)
+# quando aparece um adaptador Bluetooth depois do arranque (ex.: pen USB ligada mais tarde):
+# arranca o bluetoothd, que no arranque só corre se já houver adaptador (/etc/sysconfig/bluetooth).
+# Durante o arranque (sem D-Bus ainda) não faz nada: o S35bluetooth trata disso.
+# Instalado por scripts/apps/funcoes-10.sh.
+PATH=/usr/bin:/usr/sbin
+pidof bluetoothd > /dev/null && exit 0
+pidof dbus-daemon > /dev/null || exit 0
+case "$(runlevel 2> /dev/null)" in *" 2"|*" 3"|*" 4"|*" 5") ;; *) exit 0 ;; esac
+# setsid -f: o serviço fica fora do processo do udev (que termina os filhos do RUN)
+setsid -f /etc/rc.d/init.d/bluetooth start < /dev/null > /dev/null 2>&1
+exit 0

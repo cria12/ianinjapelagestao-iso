@@ -1,0 +1,5 @@
+# ianinjapelagestao — adaptadores Wi-Fi USB Realtek em "modo CD" (0bda:1a2b).
+# Muitos adaptadores recentes (RTL8811CU/8821CU, RTL8812BU/8822BU, RTL8852BU...) ligam-se primeiro
+# como um CD-ROM com o driver para Windows; só depois de ejetado esse CD passam a placa de rede.
+# O usb_modeswitch faz o mesmo ("StandardEject"); aqui basta o eject do util-linux.
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="1a2b", RUN+="/usr/bin/eject /dev/%k"

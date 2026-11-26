@@ -1,0 +1,5 @@
+# ianinjapelagestao: o Assistente de configuração corre como greeter do LightDM (utilizador lightdm)
+# e cria a conta pelo programa abaixo (só estado/criar/experimentar; criar recusa depois de
+# configurado; nunca aceita --raiz).
+Defaults:lightdm !lecture
+lightdm ALL=(root) NOPASSWD: /usr/libexec/ianinja-assistente/aplicar

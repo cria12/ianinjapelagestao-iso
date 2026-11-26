@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar driver NVIDIA
+GenericName=Driver gráfico oficial da NVIDIA
+Comment=Descarrega o driver oficial da NVIDIA, compila-o para este kernel e substitui o nouveau
+Exec=xfce4-terminal "--title=Instalar driver NVIDIA" --geometry=100x34 -x instalar-driver-nvidia --janela
+Icon=video-display
+Terminal=false
+StartupNotify=true
+Categories=System;Settings;HardwareSettings;
+Keywords=nvidia;driver;placa;gráfica;geforce;rtx;gtx;nouveau;cuda;

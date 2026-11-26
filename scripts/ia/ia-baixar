@@ -1,0 +1,49 @@
+#!/bin/bash
+# ia-baixar — descarrega outro modelo GGUF para usar com ia-chat / ia-perguntar.
+# Uso: ia-baixar <URL | dono/repositório/ficheiro.gguf> [nome-local.gguf]
+#   ex.: ia-baixar Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q4_k_m.gguf
+#        ia-baixar https://huggingface.co/.../resolve/main/modelo.gguf
+# Destino: /var/lib/ia/modelos (se existir/for gravável), senão /usr/share/ia/modelos.
+source /usr/share/ia/ia-comum.sh
+
+if [ $# -lt 1 ] || [ "$1" = -h ] || [ "$1" = --help ]; then
+  sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
+  exit 0
+fi
+orig=$1
+case $orig in
+  http://*|https://*) url=$orig ;;
+  */*/*.gguf)
+    dono=${orig%%/*}; resto=${orig#*/}; repo=${resto%%/*}; fich=${resto#*/}
+    url="https://huggingface.co/$dono/$repo/resolve/main/$fich" ;;
+  *) ia_erro "indique um URL ou dono/repositório/ficheiro.gguf (ver ia-baixar -h)" ;;
+esac
+nome=${2:-$(basename "${url%%\?*}")}
+case $nome in *.gguf) ;; *) nome=$nome.gguf ;; esac
+
+dir=$(ia_dir_escrita) || ia_erro "sem permissão de escrita em $IA_MODELOS_VAR nem $IA_MODELOS_SIS (tente com sudo)"
+dest=$dir/$nome
+[ -e "$dest" ] && ia_erro "já existe $dest"
+
+echo "A obter informação de $url ..."
+tam=$(curl -sIL --fail "$url" 2> /dev/null | tr -d '\r' | awk 'tolower($1)=="content-length:"{t=$2} END{print t+0}')
+livre=$(( $(df -Pk "$dir" | awk 'NR==2{print $4}') * 1024 ))
+if [ "${tam:-0}" -gt 0 ]; then
+  echo "Tamanho: $(numfmt --to=iec "$tam" 2> /dev/null || echo "$tam bytes") · espaço livre em $dir: $(numfmt --to=iec "$livre" 2> /dev/null || echo "$livre bytes")"
+  # margem de 100 MiB
+  [ $(( tam + 104857600 )) -le "$livre" ] || ia_erro "espaço insuficiente em $dir (numa sessão live, /var vive na RAM)"
+else
+  echo "Aviso: tamanho desconhecido (o servidor não indicou Content-Length); espaço livre: $(numfmt --to=iec "$livre" 2> /dev/null || echo "$livre bytes")"
+fi
+
+echo "A descarregar para $dest ..."
+if ! curl -L --fail --progress-bar -C - -o "$dest.part" "$url"; then
+  ia_erro "falhou o download (o ficheiro parcial ficou em $dest.part; repetir o comando continua)"
+fi
+if [ "$(head -c 4 "$dest.part")" != GGUF ]; then
+  rm -f "$dest.part"
+  ia_erro "o ficheiro descarregado não é um modelo GGUF"
+fi
+mv "$dest.part" "$dest"
+echo "Modelo instalado: $dest ($(du -h "$dest" | cut -f1))"
+echo "Usar com: ia-chat -m $nome   ou   ia-perguntar -m $nome \"pergunta\""

@@ -1,0 +1,10 @@
+# F8e — bloco 12: correções do teste em hardware real (2026-11-13: RTX 5060, Razer Kiyo X, OBS e
+# GitHub Desktop em Flatpak). Formato id|comando. Ver scripts/apps/decisoes-12.txt.
+lua|pacote general/lua                                     # recomendado pelo WirePlumber (scripts de política)
+wireplumber|pacote multimedia/wireplumber                  # gestor de sessão: sem ele o PipeWire não vê microfones nem colunas
+sbc|pacote multimedia/sbc                                  # codec SBC: áudio Bluetooth (A2DP/HFP) no PipeWire
+pipewire-bluetooth|pacote multimedia/pipewire              # recompila o PipeWire agora com SBC -> plugin spa bluez5
+v4l-utils|pacote multimedia/v4l-utils                      # v4l2-ctl: formatos/resoluções da câmara (diagnóstico)
+gnome-keyring|pacote gnome/gnome-keyring                   # org.freedesktop.secrets: GitHub Desktop, Chrome, VS Code guardam senhas
+correcoes-12|correcoes_12_instalar                         # instalar-driver-nvidia corrigido, /usr/sbin no PATH, PAM e autostart do chaveiro
+correcoes-12-verificar|correcoes_12_verificar              # comandos presentes + PipeWire/WirePlumber/pipewire-pulse a arrancar como ninja

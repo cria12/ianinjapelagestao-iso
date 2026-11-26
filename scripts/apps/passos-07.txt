@@ -1,0 +1,3 @@
+# F8e — bloco 7: ícones do diálogo "Terminar sessão" (xfce4-session) no tema WhiteSur.
+# Formato id|comando. Ver scripts/apps/decisoes-07.txt.
+icones-sessao|icones_sessao                    # PNG pré-desenhados para xfsm-*/system-*, Inherits=Adwaita,hicolor, caches, verificação

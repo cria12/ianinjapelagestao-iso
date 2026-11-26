@@ -1,0 +1,2 @@
+# ianinjapelagestao: placa gráfica NVIDIA (VGA 0x0300xx ou 3D 0x0302xx) -> atalho "Instalar driver NVIDIA"
+ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030[02]*", RUN+="/usr/lib/instalar-driver-nvidia/mostrar-atalho"

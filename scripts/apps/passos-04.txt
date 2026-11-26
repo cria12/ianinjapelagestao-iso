@@ -1,0 +1,25 @@
+# F8e — bloco 4: ambiente de programação. Python 3 com sqlite3 (o pip, o venv e o ensurepip já vêm
+# do LFS), requests e pytest; Node.js + npm (npm -g sem sudo em ~/.npm-global); GDB e Valgrind; e o
+# comando instalar-ferramentas (Rust/rustup, Go e Java a pedido — não vão na ISO). Formato id|comando.
+# Ver scripts/apps/decisoes-04.txt.
+python3-sqlite3|pacote general/python3                                       # só o módulo _sqlite3 (o Python do LFS foi compilado antes do SQLite)
+setuptools_scm|pacote general/python-dependencies@setuptools_scm             # requerido pelo charset-normalizer, pluggy, hatch-vcs e pytest
+charset-normalizer|pacote general/python-dependencies@charset-normalizer     # requerido pelo requests
+idna|pacote general/python-dependencies@idna                                 # requerido pelo requests
+editables|pacote general/python-dependencies@editables                       # requerido pelo hatchling
+pathspec|pacote general/python-dependencies@pathspec                         # requerido pelo hatchling
+pluggy|pacote general/python-dependencies@pluggy                             # requerido pelo hatchling e pelo pytest
+trove-classifiers|pacote general/python-dependencies@trove-classifiers       # requerido pelo hatchling
+hatchling|pacote general/python-dependencies@hatchling                       # backend de compilação do urllib3 e do iniconfig
+hatch-vcs|pacote general/python-dependencies@hatch-vcs                       # requerido pelo urllib3 e pelo iniconfig
+urllib3|pacote general/python-dependencies@urllib3                           # requerido pelo requests
+requests|pacote general/python-modules@requests --extra requests-use_system_certs   # HTTP para scripts; patch: usa os certificados do make-ca
+iniconfig|pacote general/python-dependencies@iniconfig                       # requerido pelo pytest
+pygments|pacote general/python-modules@pygments                              # requerido pelo pytest (pygments>=2.7.2)
+pytest|pacote general/python-modules@pytest                                  # testes em Python
+six|pacote general/python-modules@six                                        # dependência de execução recomendada do GDB (scripts Python)
+nodejs|pacote general/nodejs                                                 # node + npm + corepack; Brotli, c-ares, libuv e nghttp2 internos
+gdb|pacote general/gdb                                                       # depurador (com Python)
+valgrind|pacote general/valgrind                                             # memcheck, callgrind, helgrind...
+prog-ambiente|prog_ambiente                                                  # /etc/profile.d/programacao.sh, instalar-ferramentas + atalho
+prog-verificar|prog_verificar                                                # Python/venv/pip/sqlite3, node/npm -g como UID 1000, gdb, valgrind

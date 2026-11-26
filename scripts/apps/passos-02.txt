@@ -1,0 +1,15 @@
+# F8e — bloco 2: OpenCV + NumPy (bindings Python 3, módulos dnn/objdetect para o FaceDetectorYN),
+# PyGObject (interface GTK do face-finder), Ristretto (ver as imagens marcadas) e o projeto face-finder
+# com fotografias de licença livre. Formato id|comando. Ver scripts/apps/decisoes-02.txt.
+libarchive|pacote general/libarchive                                   # requerido pelo opencv no livro (dá também bsdtar/bsdunzip e unzip)
+pyproject-metadata|pacote general/python-dependencies@pyproject-metadata  # requerido pelo meson_python
+meson_python|pacote general/python-dependencies@meson_python           # backend de compilação do NumPy
+numpy|pacote general/python-modules@numpy                              # antes do opencv: sem NumPy não há cv2 para Python
+opencv|pacote general/opencv                                           # cv2 (Python 3), dnn, objdetect; sem contrib, IPP, G-API, FFmpeg/GStreamer
+pycairo|pacote general/python-modules@pycairo                          # recomendado pelo PyGObject
+pygobject3|pacote general/python-modules@pygobject3                    # gi (GTK 3) para face_finder_gui.py
+libexif|pacote general/libexif                                         # requerido pelo Ristretto
+ristretto|pacote xfce/ristretto                                        # visualizador de imagens do Xfce (face-finder --abrir)
+facefinder-downloads|facefinder_downloads                              # modelo YuNet + 12 fotografias (SHA-256)
+facefinder-instalar|facefinder_instalar                                # /usr/share/face-finder, comando, atalho, ~/Projetos/face-finder
+facefinder-verificar|facefinder_verificar                              # import cv2 no chroot, face-finder numa foto, testes do projeto

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Ícone do Face Finder (original, ianinjapelagestao): rosto estilizado dentro de um visor de deteção. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a7bd5"/>
+      <stop offset="1" stop-color="#1e4f9c"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="116" height="116" rx="26" fill="url(#fundo)"/>
+  <!-- rosto -->
+  <ellipse cx="64" cy="66" rx="26" ry="31" fill="#f6d2b0"/>
+  <path d="M38 58 Q40 30 64 30 Q88 30 90 58 Q84 44 64 42 Q44 44 38 58 Z" fill="#4a3426"/>
+  <circle cx="54" cy="64" r="3.6" fill="#2b2b2b"/>
+  <circle cx="74" cy="64" r="3.6" fill="#2b2b2b"/>
+  <path d="M64 68 L61 78 L66 78" fill="none" stroke="#c89470" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M55 85 Q64 91 73 85" fill="none" stroke="#a5523d" stroke-width="3" stroke-linecap="round"/>
+  <!-- cantos do visor de deteção -->
+  <g fill="none" stroke="#5cf28a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 40 V22 H40"/>
+    <path d="M88 22 H106 V40"/>
+    <path d="M106 88 V106 H88"/>
+    <path d="M40 106 H22 V88"/>
+  </g>
+  <!-- pontos de referência -->
+  <g fill="#5cf28a">
+    <circle cx="54" cy="64" r="1.6"/>
+    <circle cx="74" cy="64" r="1.6"/>
+  </g>
+</svg>

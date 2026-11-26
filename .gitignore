@@ -1,0 +1,21 @@
+# Máquinas virtuais e imagens (grandes demais para o Git)
+vbox/
+vbox$vm/
+*.iso
+*.vdi
+*.qcow2
+output/*.iso
+
+# Logs da construção
+logs/
+
+# Segredos e configuração local
+.env*
+.vercel/
+.claude/
+
+# Notas pessoais
+Prompt de imagem para o Instagram (.txt
+
+# Senhas da construção
+scripts/senhas.local

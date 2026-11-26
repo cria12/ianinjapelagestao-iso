@@ -1,0 +1,1576 @@
+# ianinjapelagestao — Etapas do Projeto
+Início: 2026-11-04 19:26 | Última atualização: 2026-11-19 19:10 | Progresso global: 100 %
+
+Espaço livre no C: (Windows): **109 GB** de 953 GB (medido em 2026-11-19 19:09)
+
+Estimativa de conclusão: **≈ 5–6 h a partir de 19:36 → ISO pronta por volta de 01:00–02:00 de 05/11 (se não houver erros; medido: 1 SBU ≈ 1 min com -j12)**
+
+Etapa atual: **F12** · Passo: `` · Tentativa: 0
+
+| # | Etapa | Estado | Início | Fim | Duração | Notas |
+|---|-------|--------|--------|-----|---------|-------|
+| F0 | Preparação do host | ✅ Concluída | 2026-11-04 19:26 | 2026-11-04 19:27 | 2 min | version-check OK; host WSL2 Ubuntu 24.04, 12 núcleos |
+| F1 | Imagem, fontes e utilizador lfs (Cap. 2-4) | ✅ Concluída | 2026-11-04 19:28 | 2026-11-04 19:34 | 7 min | lfs.img montada, 95 pacotes/patches com MD5 OK, utilizador lfs criado |
+| F2 | Cross-toolchain (Cap. 5) | ✅ Concluída | 2026-11-04 19:36 | 2026-11-04 19:46 | 10 min | 5 pacotes; sanity check Glibc OK |
+| F3 | Ferramentas temporárias (Cap. 6) | ✅ Concluída | 2026-11-04 19:46 | 2026-11-04 19:58 | 13 min | 17 pacotes |
+| F4 | Chroot e ferramentas adicionais (Cap. 7) | ✅ Concluída | 2026-11-04 19:58 | 2026-11-04 20:06 | 8 min | 8 pacotes/secções; backup em backup-cap7.tar.xz (496M) |
+| F5 | Sistema base (Cap. 8) | ⚠️ Concluída c/ aviso | 2026-11-04 20:06 | 2026-11-05 07:49 | 11h43 | 82 pacotes/secções; testes com falhas (tolerados, ver logs): Python acl e2fsprogs glibc libelf perl procps-ng tar util-linux  |
+| F6 | Configuração do sistema + identidade (Cap. 9) | ✅ Concluída | 2026-11-05 07:49 | 2026-11-05 07:49 | 1 min | bootscripts, rede dhcpcd/eth0, inittab+ttyS0, pt-latin1, pt_PT.UTF-8, identidade da distro |
+| F7 | Kernel e boot (Cap. 10) | ✅ Concluída | 2026-11-05 14:16 | 2026-11-05 14:46 | 30 min | kernel 6.16.1 (base Arch 6.16.1.arch1-1) com todas as opções pedidas; 6256 módulos (137M); fstab live |
+| F8 | Pacotes BLFS | ✅ Concluída | 2026-11-05 07:53 | 2026-11-05 08:01 | 9 min | 34 passos BLFS: certificados, PAM/Shadow/Sudo, dhcpcd, Wget/cURL, OpenSSH, nano, utilitários, Git, Lynx, utilizador ninja |
+| F8b | Inteligência artificial (llama.cpp + modelo) | ✅ Concluída | 2026-11-05 08:26 | 2026-11-05 08:29 | 4 min | CMake 4.1.0, llama.cpp b12121 (todas as variantes CPU), Qwen2.5-1.5B Q4_K_M; ia-perguntar em 1.369117816 s no chroot |
+| F8c | Drivers e firmware | ✅ Concluída | 2026-11-05 14:46 | 2026-11-05 18:02 | 3h15 | firmware 20261019 (3937 ficheiros, 790M, .xz), regdb 2026.09.03, microcódigo 18M; libnl, wpa_supplicant, iw, alsa-lib, alsa-utils, ligar-wifi |
+| F8d | Interface gráfica (Xorg + Xfce, estilo macOS) | ✅ Concluída | 2026-11-05 18:02 | 2026-11-06 12:32 | 18h30 | 124 passos: Xorg, Mesa, GTK3, Xfce 4.20, LightDM e tema ao estilo do macOS |
+| F8e | Aplicações, drivers, programação, loja e face-finder | ✅ Concluída | 2026-11-06 13:03 | 2026-11-19 18:57 | 317h53 | 120 passos: aplicações (instalar-aplicacoes), drivers, Python/Node.js, loja Flatpak e face-finder |
+| F9 | Sistema live (initramfs + SquashFS) | ✅ Concluída | 2026-11-19 18:57 | 2026-11-19 18:59 | 3 min | initrd 24M, rootfs.squashfs 2.2G |
+| F10 | Geração da ISO | ✅ Concluída | 2026-11-19 18:59 | 2026-11-19 19:00 | 1 min | ISO 2.2G, sha256 4b4ce4975c4a712c… |
+| F11 | Testes automáticos (QEMU BIOS/UEFI) | ✅ Concluída | 2026-11-19 19:00 | 2026-11-19 19:09 | 10 min | BIOS 20/20, UEFI 20/20, persistência OK, persistencia-ficheiro 5/5, persistencia-pen 8/8, assistente-bios 4/4, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4 |
+| F12 | Entrega | ✅ Concluída | 2026-11-19 19:09 | 2026-11-19 19:10 | 1 min | ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso |
+
+Legenda: ⏳ Pendente · 🔄 Em curso · ✅ Concluída · ⚠️ Concluída c/ aviso · ❌ Falhou
+
+## Registo detalhado
+- 2026-11-04 19:26 — Início da etapa F0 — Preparação do host
+- 2026-11-04 19:26 — → f0-apt (tentativa 1) — log: logs/00-apt.log
+- 2026-11-04 19:27 — ✔ f0-apt concluído
+- 2026-11-04 19:27 — Fim da etapa F0 (ok) version-check OK; host WSL2 Ubuntu 24.04, 12 núcleos
+- 2026-11-04 19:27 — Início da etapa F0 — Preparação do host
+- 2026-11-04 19:27 — Fim da etapa F0 (ok) version-check OK; host WSL2 Ubuntu 24.04, 12 núcleos
+- 2026-11-04 19:28 — Início da etapa F1 — Imagem, fontes e utilizador lfs (Cap. 2-4)
+- 2026-11-04 19:28 — lfs.img (40 GB, ext4) criada
+- 2026-11-04 19:28 — → f1-fontes (tentativa 1) — log: logs/01-fontes.log
+- 2026-11-04 19:34 — ✔ f1-fontes concluído
+- 2026-11-04 19:34 — Fim da etapa F1 (ok) lfs.img montada, 95 pacotes/patches com MD5 OK, utilizador lfs criado
+- 2026-11-04 19:36 — Início da etapa F2 — Cross-toolchain (Cap. 5)
+- 2026-11-04 19:36 — Orquestrador parado em F2 (f02-cross-toolchain.sh) — ver logs/run-all.log
+- 2026-11-04 19:36 — Início da etapa F2 — Cross-toolchain (Cap. 5)
+- 2026-11-04 19:36 — → chapter05/binutils-pass1 (tentativa 1) — log: logs/05-binutils-pass1.log
+- 2026-11-04 19:37 — ✔ chapter05/binutils-pass1 concluído
+- 2026-11-04 19:37 — → chapter05/gcc-pass1 (tentativa 1) — log: logs/05-gcc-pass1.log
+- 2026-11-04 19:42 — Espaço livre no C: do Windows: 301 GB de 953 GB (necessário ~25 GB para lfs.img, backup e ISO)
+- 2026-11-04 19:43 — ✔ chapter05/gcc-pass1 concluído
+- 2026-11-04 19:43 — → chapter05/linux-headers (tentativa 1) — log: logs/05-linux-headers.log
+- 2026-11-04 19:43 — ✔ chapter05/linux-headers concluído
+- 2026-11-04 19:43 — → chapter05/glibc (tentativa 1) — log: logs/05-glibc.log
+- 2026-11-04 19:43 — Estimativa: Cap.5 ~15 min, Cap.6 ~15 min, Cap.7 ~15 min, Cap.8 c/ testes ~3–3,5 h (GCC ~1 h, Glibc ~30 min), kernel ~15 min, BLFS ~45 min, SquashFS/ISO ~15 min, testes QEMU (KVM ativo) ~10 min
+- 2026-11-04 19:45 — ✔ chapter05/glibc concluído
+- 2026-11-04 19:45 — → chapter05/gcc-libstdc++ (tentativa 1) — log: logs/05-gcc-libstdc++.log
+- 2026-11-04 19:46 — ✔ chapter05/gcc-libstdc++ concluído
+- 2026-11-04 19:46 — Sanity check do Glibc (Cap. 5) OK: interpretador /lib64/ld-linux-x86-64.so.2
+- 2026-11-04 19:46 — Fim da etapa F2 (ok) 5 pacotes; sanity check Glibc OK
+- 2026-11-04 19:46 — Início da etapa F3 — Ferramentas temporárias (Cap. 6)
+- 2026-11-04 19:46 — → chapter06/m4 (tentativa 1) — log: logs/06-m4.log
+- 2026-11-04 19:46 — ✔ chapter06/m4 concluído
+- 2026-11-04 19:46 — → chapter06/ncurses (tentativa 1) — log: logs/06-ncurses.log
+- 2026-11-04 19:47 — ✔ chapter06/ncurses concluído
+- 2026-11-04 19:47 — → chapter06/bash (tentativa 1) — log: logs/06-bash.log
+- 2026-11-04 19:47 — ✔ chapter06/bash concluído
+- 2026-11-04 19:47 — → chapter06/coreutils (tentativa 1) — log: logs/06-coreutils.log
+- 2026-11-04 19:48 — ✔ chapter06/coreutils concluído
+- 2026-11-04 19:48 — → chapter06/diffutils (tentativa 1) — log: logs/06-diffutils.log
+- 2026-11-04 19:48 — ✔ chapter06/diffutils concluído
+- 2026-11-04 19:48 — → chapter06/file (tentativa 1) — log: logs/06-file.log
+- 2026-11-04 19:48 — ✔ chapter06/file concluído
+- 2026-11-04 19:48 — → chapter06/findutils (tentativa 1) — log: logs/06-findutils.log
+- 2026-11-04 19:48 — ✔ chapter06/findutils concluído
+- 2026-11-04 19:48 — → chapter06/gawk (tentativa 1) — log: logs/06-gawk.log
+- 2026-11-04 19:49 — ✔ chapter06/gawk concluído
+- 2026-11-04 19:49 — → chapter06/grep (tentativa 1) — log: logs/06-grep.log
+- 2026-11-04 19:49 — ✔ chapter06/grep concluído
+- 2026-11-04 19:49 — → chapter06/gzip (tentativa 1) — log: logs/06-gzip.log
+- 2026-11-04 19:49 — ✔ chapter06/gzip concluído
+- 2026-11-04 19:49 — → chapter06/make (tentativa 1) — log: logs/06-make.log
+- 2026-11-04 19:49 — ✔ chapter06/make concluído
+- 2026-11-04 19:49 — → chapter06/patch (tentativa 1) — log: logs/06-patch.log
+- 2026-11-04 19:49 — ✔ chapter06/patch concluído
+- 2026-11-04 19:49 — → chapter06/sed (tentativa 1) — log: logs/06-sed.log
+- 2026-11-04 19:50 — ✔ chapter06/sed concluído
+- 2026-11-04 19:50 — → chapter06/tar (tentativa 1) — log: logs/06-tar.log
+- 2026-11-04 19:50 — ✔ chapter06/tar concluído
+- 2026-11-04 19:50 — → chapter06/xz (tentativa 1) — log: logs/06-xz.log
+- 2026-11-04 19:50 — ✔ chapter06/xz concluído
+- 2026-11-04 19:50 — → chapter06/binutils-pass2 (tentativa 1) — log: logs/06-binutils-pass2.log
+- 2026-11-04 19:51 — ✔ chapter06/binutils-pass2 concluído
+- 2026-11-04 19:51 — → chapter06/gcc-pass2 (tentativa 1) — log: logs/06-gcc-pass2.log
+- 2026-11-04 19:58 — ✔ chapter06/gcc-pass2 concluído
+- 2026-11-04 19:58 — Fim da etapa F3 (ok) 17 pacotes
+- 2026-11-04 19:58 — Início da etapa F4 — Chroot e ferramentas adicionais (Cap. 7)
+- 2026-11-04 19:58 — → chapter07/changingowner (tentativa 1) — log: logs/07-changingowner.log
+- 2026-11-04 19:58 — ✔ chapter07/changingowner concluído
+- 2026-11-04 19:58 — → chapter07/creatingdirs (tentativa 1) — log: logs/07-creatingdirs.log
+- 2026-11-04 19:58 — ✔ chapter07/creatingdirs concluído
+- 2026-11-04 19:58 — → chapter07/createfiles (tentativa 1) — log: logs/07-createfiles.log
+- 2026-11-04 19:58 — ✔ chapter07/createfiles concluído
+- 2026-11-04 19:58 — → chapter07/gettext (tentativa 1) — log: logs/07-gettext.log
+- 2026-11-04 20:01 — ✔ chapter07/gettext concluído
+- 2026-11-04 20:01 — → chapter07/bison (tentativa 1) — log: logs/07-bison.log
+- 2026-11-04 20:01 — ✔ chapter07/bison concluído
+- 2026-11-04 20:01 — → chapter07/perl (tentativa 1) — log: logs/07-perl.log
+- 2026-11-04 20:02 — ✔ chapter07/perl concluído
+- 2026-11-04 20:02 — → chapter07/Python (tentativa 1) — log: logs/07-Python.log
+- 2026-11-04 20:03 — ✔ chapter07/Python concluído
+- 2026-11-04 20:03 — → chapter07/texinfo (tentativa 1) — log: logs/07-texinfo.log
+- 2026-11-04 20:03 — ✔ chapter07/texinfo concluído
+- 2026-11-04 20:03 — → chapter07/util-linux (tentativa 1) — log: logs/07-util-linux.log
+- 2026-11-04 20:04 — ✔ chapter07/util-linux concluído
+- 2026-11-04 20:04 — → f4-limpeza (tentativa 1) — log: logs/07-cleanup.log
+- 2026-11-04 20:04 — ✔ f4-limpeza concluído
+- 2026-11-04 20:04 — → f4-backup (tentativa 1) — log: logs/07-backup.log
+- 2026-11-04 20:06 — ✔ f4-backup concluído
+- 2026-11-04 20:06 — Fim da etapa F4 (ok) 8 pacotes/secções; backup em backup-cap7.tar.xz (496M)
+- 2026-11-04 20:06 — Início da etapa F5 — Sistema base (Cap. 8)
+- 2026-11-04 20:06 — → chapter08/man-pages (tentativa 1) — log: logs/08-man-pages.log
+- 2026-11-04 20:06 — ✔ chapter08/man-pages concluído
+- 2026-11-04 20:06 — → chapter08/iana-etc (tentativa 1) — log: logs/08-iana-etc.log
+- 2026-11-04 20:06 — ✔ chapter08/iana-etc concluído
+- 2026-11-04 20:06 — → chapter08/glibc (tentativa 1) — log: logs/08-glibc.log
+- 2026-11-04 20:29 — ✔ chapter08/glibc concluído
+- 2026-11-04 20:29 — Test suite Glibc: 4 FAIL (livro documenta falhas conhecidas): io/tst-lchmod misc/tst-preadvwritev2 misc/tst-preadvwritev64v2 nss/tst-nss-files-hosts-getent 
+- 2026-11-04 20:29 — → chapter08/zlib (tentativa 1) — log: logs/08-zlib.log
+- 2026-11-04 20:29 — ✔ chapter08/zlib concluído
+- 2026-11-04 20:29 — → chapter08/bzip2 (tentativa 1) — log: logs/08-bzip2.log
+- 2026-11-04 20:29 — ✔ chapter08/bzip2 concluído
+- 2026-11-04 20:29 — → chapter08/xz (tentativa 1) — log: logs/08-xz.log
+- 2026-11-04 20:29 — ✔ chapter08/xz concluído
+- 2026-11-04 20:29 — → chapter08/lz4 (tentativa 1) — log: logs/08-lz4.log
+- 2026-11-04 20:29 — ✔ chapter08/lz4 concluído
+- 2026-11-04 20:29 — → chapter08/zstd (tentativa 1) — log: logs/08-zstd.log
+- 2026-11-04 20:30 — ✔ chapter08/zstd concluído
+- 2026-11-04 20:30 — → chapter08/file (tentativa 1) — log: logs/08-file.log
+- 2026-11-04 20:30 — ✔ chapter08/file concluído
+- 2026-11-04 20:30 — → chapter08/readline (tentativa 1) — log: logs/08-readline.log
+- 2026-11-04 20:30 — ✔ chapter08/readline concluído
+- 2026-11-04 20:30 — → chapter08/m4 (tentativa 1) — log: logs/08-m4.log
+- 2026-11-04 20:31 — ✔ chapter08/m4 concluído
+- 2026-11-04 20:31 — → chapter08/bc (tentativa 1) — log: logs/08-bc.log
+- 2026-11-04 20:31 — ✔ chapter08/bc concluído
+- 2026-11-04 20:31 — → chapter08/flex (tentativa 1) — log: logs/08-flex.log
+- 2026-11-04 20:31 — ✔ chapter08/flex concluído
+- 2026-11-04 20:31 — → chapter08/tcl (tentativa 1) — log: logs/08-tcl.log
+- 2026-11-04 20:37 — ✔ chapter08/tcl concluído
+- 2026-11-04 20:37 — → chapter08/expect (tentativa 1) — log: logs/08-expect.log
+- 2026-11-04 20:37 — ✔ chapter08/expect concluído
+- 2026-11-04 20:37 — → chapter08/dejagnu (tentativa 1) — log: logs/08-dejagnu.log
+- 2026-11-04 20:37 — ✔ chapter08/dejagnu concluído
+- 2026-11-04 20:37 — → chapter08/pkgconf (tentativa 1) — log: logs/08-pkgconf.log
+- 2026-11-04 20:37 — ✔ chapter08/pkgconf concluído
+- 2026-11-04 20:37 — → chapter08/binutils (tentativa 1) — log: logs/08-binutils.log
+- 2026-11-04 20:41 — ✘ chapter08/binutils falhou na tentativa 1 (ver logs/08-binutils.log)
+- 2026-11-04 20:41 — → chapter08/binutils (tentativa 2) — log: logs/08-binutils.log
+- 2026-11-04 20:44 — ✘ chapter08/binutils falhou na tentativa 2 (ver logs/08-binutils.log)
+- 2026-11-04 20:44 — → chapter08/binutils (tentativa 3) — log: logs/08-binutils.log
+- 2026-11-04 20:47 — ✘ chapter08/binutils falhou na tentativa 3 (ver logs/08-binutils.log)
+- 2026-11-04 20:47 — Fim da etapa F5 (falhou) falhou em chapter08/binutils (1/1) — ver logs/08-binutils.log
+- 2026-11-04 20:47 — Orquestrador parado em F5 (f05-sistema-base.sh) — ver logs/run-all.log
+- 2026-11-04 20:48 — Correção: bloco 5 do Binutils (grep '^FAIL:') passa a não-fatal — o grep devolve 1 precisamente quando não há falhas. Build retomada.
+- 2026-11-04 20:49 — Início da etapa F5 — Sistema base (Cap. 8)
+- 2026-11-04 20:49 — → chapter08/binutils (tentativa 1) — log: logs/08-binutils.log
+- 2026-11-04 20:52 — ✔ chapter08/binutils concluído
+- 2026-11-04 20:52 — Test suite Binutils: 0 falhas inesperadas
+- 2026-11-04 20:52 — → chapter08/gmp (tentativa 1) — log: logs/08-gmp.log
+- 2026-11-04 20:52 — ✘ chapter08/gmp falhou na tentativa 1 (ver logs/08-gmp.log)
+- 2026-11-04 20:52 — → chapter08/gmp (tentativa 2) — log: logs/08-gmp.log
+- 2026-11-04 20:52 — ✘ chapter08/gmp falhou na tentativa 2 (ver logs/08-gmp.log)
+- 2026-11-04 20:52 — → chapter08/gmp (tentativa 3) — log: logs/08-gmp.log
+- 2026-11-04 20:52 — ✘ chapter08/gmp falhou na tentativa 3 (ver logs/08-gmp.log)
+- 2026-11-04 20:52 — Fim da etapa F5 (falhou) falhou em chapter08/gmp (1/1) — ver logs/08-gmp.log
+- 2026-11-04 20:52 — Orquestrador parado em F5 (f05-sistema-base.sh) — ver logs/run-all.log
+- 2026-11-04 20:53 — Correções Cap. 8: GMP bloco 1 (exemplo ABI=32) omitido; Groff PAGE=A4; test suites de Bash, OpenSSL, Perl e Util-linux marcadas como testes (não fatais). Build retomada.
+- 2026-11-04 20:53 — Início da etapa F5 — Sistema base (Cap. 8)
+- 2026-11-04 20:53 — → chapter08/gmp (tentativa 1) — log: logs/08-gmp.log
+- 2026-11-04 20:54 — ✔ chapter08/gmp concluído
+- 2026-11-04 20:54 — Test suite gmp: 199 testes passaram, 0 falhas
+- 2026-11-04 20:54 — → chapter08/mpfr (tentativa 1) — log: logs/08-mpfr.log
+- 2026-11-04 20:54 — ✔ chapter08/mpfr concluído
+- 2026-11-04 20:54 — Test suite mpfr: 198 testes passaram, 0 falhas
+- 2026-11-04 20:54 — → chapter08/mpc (tentativa 1) — log: logs/08-mpc.log
+- 2026-11-04 20:54 — ✔ chapter08/mpc concluído
+- 2026-11-04 20:54 — Test suite mpc: 74 testes passaram, 0 falhas
+- 2026-11-04 20:54 — → chapter08/attr (tentativa 1) — log: logs/08-attr.log
+- 2026-11-04 20:54 — ✔ chapter08/attr concluído
+- 2026-11-04 20:54 — → chapter08/acl (tentativa 1) — log: logs/08-acl.log
+- 2026-11-04 20:54 — ✔ chapter08/acl concluído
+- 2026-11-04 20:54 — → chapter08/libcap (tentativa 1) — log: logs/08-libcap.log
+- 2026-11-04 20:54 — ✔ chapter08/libcap concluído
+- 2026-11-04 20:54 — → chapter08/libxcrypt (tentativa 1) — log: logs/08-libxcrypt.log
+- 2026-11-04 20:54 — ✔ chapter08/libxcrypt concluído
+- 2026-11-04 20:54 — → chapter08/shadow (tentativa 1) — log: logs/08-shadow.log
+- 2026-11-04 20:55 — ✔ chapter08/shadow concluído
+- 2026-11-04 20:55 — → chapter08/gcc (tentativa 1) — log: logs/08-gcc.log
+- 2026-11-04 21:58 — ✔ chapter08/gcc concluído
+- 2026-11-04 21:58 — Test suite GCC: 8 falhas inesperadas (resumo em logs/08-gcc.log)
+- 2026-11-04 21:58 — → chapter08/ncurses (tentativa 1) — log: logs/08-ncurses.log
+- 2026-11-04 21:59 — ✔ chapter08/ncurses concluído
+- 2026-11-04 21:59 — → chapter08/sed (tentativa 1) — log: logs/08-sed.log
+- 2026-11-04 22:00 — ✔ chapter08/sed concluído
+- 2026-11-04 22:00 — → chapter08/psmisc (tentativa 1) — log: logs/08-psmisc.log
+- 2026-11-04 22:00 — ✔ chapter08/psmisc concluído
+- 2026-11-04 22:00 — → chapter08/gettext (tentativa 1) — log: logs/08-gettext.log
+- 2026-11-04 22:03 — ✔ chapter08/gettext concluído
+- 2026-11-04 22:03 — → chapter08/bison (tentativa 1) — log: logs/08-bison.log
+- 2026-11-04 22:06 — ✔ chapter08/bison concluído
+- 2026-11-04 22:06 — → chapter08/grep (tentativa 1) — log: logs/08-grep.log
+- 2026-11-04 22:07 — ✔ chapter08/grep concluído
+- 2026-11-04 22:07 — → chapter08/bash (tentativa 1) — log: logs/08-bash.log
+- 2026-11-04 22:09 — ✔ chapter08/bash concluído
+- 2026-11-04 22:09 — → chapter08/libtool (tentativa 1) — log: logs/08-libtool.log
+- 2026-11-04 22:11 — ✔ chapter08/libtool concluído
+- 2026-11-04 22:11 — → chapter08/gdbm (tentativa 1) — log: logs/08-gdbm.log
+- 2026-11-04 22:11 — ✔ chapter08/gdbm concluído
+- 2026-11-04 22:11 — → chapter08/gperf (tentativa 1) — log: logs/08-gperf.log
+- 2026-11-04 22:11 — ✔ chapter08/gperf concluído
+- 2026-11-04 22:11 — → chapter08/expat (tentativa 1) — log: logs/08-expat.log
+- 2026-11-04 22:11 — ✔ chapter08/expat concluído
+- 2026-11-04 22:11 — → chapter08/inetutils (tentativa 1) — log: logs/08-inetutils.log
+- 2026-11-04 22:12 — ✔ chapter08/inetutils concluído
+- 2026-11-04 22:12 — → chapter08/less (tentativa 1) — log: logs/08-less.log
+- 2026-11-04 22:12 — ✔ chapter08/less concluído
+- 2026-11-04 22:12 — → chapter08/perl (tentativa 1) — log: logs/08-perl.log
+- 2026-11-04 22:15 — ✔ chapter08/perl concluído
+- 2026-11-04 22:15 — → chapter08/xml-parser (tentativa 1) — log: logs/08-xml-parser.log
+- 2026-11-04 22:15 — ✔ chapter08/xml-parser concluído
+- 2026-11-04 22:15 — → chapter08/intltool (tentativa 1) — log: logs/08-intltool.log
+- 2026-11-04 22:15 — ✔ chapter08/intltool concluído
+- 2026-11-04 22:15 — → chapter08/autoconf (tentativa 1) — log: logs/08-autoconf.log
+- 2026-11-04 22:17 — ✔ chapter08/autoconf concluído
+- 2026-11-04 22:17 — → chapter08/automake (tentativa 1) — log: logs/08-automake.log
+- 2026-11-04 22:22 — ✔ chapter08/automake concluído
+- 2026-11-04 22:22 — → chapter08/openssl (tentativa 1) — log: logs/08-openssl.log
+- 2026-11-04 22:24 — ✔ chapter08/openssl concluído
+- 2026-11-04 22:24 — → chapter08/libelf (tentativa 1) — log: logs/08-libelf.log
+- 2026-11-04 22:25 — ✔ chapter08/libelf concluído
+- 2026-11-04 22:25 — → chapter08/libffi (tentativa 1) — log: logs/08-libffi.log
+- 2026-11-04 22:28 — ✔ chapter08/libffi concluído
+- 2026-11-04 22:28 — → chapter08/Python (tentativa 1) — log: logs/08-Python.log
+- 2026-11-04 22:35 — ✔ chapter08/Python concluído
+- 2026-11-04 22:35 — → chapter08/flit-core (tentativa 1) — log: logs/08-flit-core.log
+- 2026-11-04 22:35 — ✔ chapter08/flit-core concluído
+- 2026-11-04 22:35 — → chapter08/packaging (tentativa 1) — log: logs/08-packaging.log
+- 2026-11-04 22:35 — ✔ chapter08/packaging concluído
+- 2026-11-04 22:35 — → chapter08/wheel (tentativa 1) — log: logs/08-wheel.log
+- 2026-11-04 22:35 — ✔ chapter08/wheel concluído
+- 2026-11-04 22:35 — → chapter08/setuptools (tentativa 1) — log: logs/08-setuptools.log
+- 2026-11-04 22:35 — ✔ chapter08/setuptools concluído
+- 2026-11-04 22:35 — → chapter08/ninja (tentativa 1) — log: logs/08-ninja.log
+- 2026-11-04 22:35 — ✔ chapter08/ninja concluído
+- 2026-11-04 22:35 — → chapter08/meson (tentativa 1) — log: logs/08-meson.log
+- 2026-11-04 22:35 — ✔ chapter08/meson concluído
+- 2026-11-04 22:35 — → chapter08/kmod (tentativa 1) — log: logs/08-kmod.log
+- 2026-11-04 22:35 — ✔ chapter08/kmod concluído
+- 2026-11-04 22:35 — → chapter08/coreutils (tentativa 1) — log: logs/08-coreutils.log
+- 2026-11-04 22:37 — ✔ chapter08/coreutils concluído
+- 2026-11-04 22:37 — → chapter08/diffutils (tentativa 1) — log: logs/08-diffutils.log
+- 2026-11-04 22:38 — ✔ chapter08/diffutils concluído
+- 2026-11-04 22:38 — → chapter08/gawk (tentativa 1) — log: logs/08-gawk.log
+- 2026-11-04 22:38 — ✔ chapter08/gawk concluído
+- 2026-11-04 22:38 — → chapter08/findutils (tentativa 1) — log: logs/08-findutils.log
+- 2026-11-04 22:39 — ✔ chapter08/findutils concluído
+- 2026-11-04 22:39 — → chapter08/groff (tentativa 1) — log: logs/08-groff.log
+- 2026-11-04 22:39 — ✔ chapter08/groff concluído
+- 2026-11-04 22:39 — → chapter08/grub (tentativa 1) — log: logs/08-grub.log
+- 2026-11-04 22:40 — ✔ chapter08/grub concluído
+- 2026-11-04 22:40 — → chapter08/gzip (tentativa 1) — log: logs/08-gzip.log
+- 2026-11-04 22:41 — ✔ chapter08/gzip concluído
+- 2026-11-04 22:41 — → chapter08/iproute2 (tentativa 1) — log: logs/08-iproute2.log
+- 2026-11-04 22:41 — ✔ chapter08/iproute2 concluído
+- 2026-11-04 22:41 — → chapter08/kbd (tentativa 1) — log: logs/08-kbd.log
+- 2026-11-04 22:41 — ✔ chapter08/kbd concluído
+- 2026-11-04 22:41 — → chapter08/libpipeline (tentativa 1) — log: logs/08-libpipeline.log
+- 2026-11-04 22:41 — ✔ chapter08/libpipeline concluído
+- 2026-11-04 22:41 — → chapter08/make (tentativa 1) — log: logs/08-make.log
+- 2026-11-04 22:42 — ✔ chapter08/make concluído
+- 2026-11-04 22:42 — → chapter08/patch (tentativa 1) — log: logs/08-patch.log
+- 2026-11-04 22:42 — ✔ chapter08/patch concluído
+- 2026-11-04 22:42 — → chapter08/tar (tentativa 1) — log: logs/08-tar.log
+- 2026-11-04 22:44 — ✔ chapter08/tar concluído
+- 2026-11-04 22:44 — → chapter08/texinfo (tentativa 1) — log: logs/08-texinfo.log
+- 2026-11-04 22:45 — ✔ chapter08/texinfo concluído
+- 2026-11-04 22:45 — → chapter08/vim (tentativa 1) — log: logs/08-vim.log
+- 2026-11-04 22:49 — ✔ chapter08/vim concluído
+- 2026-11-04 22:49 — → chapter08/markupsafe (tentativa 1) — log: logs/08-markupsafe.log
+- 2026-11-04 22:49 — ✔ chapter08/markupsafe concluído
+- 2026-11-04 22:49 — → chapter08/jinja2 (tentativa 1) — log: logs/08-jinja2.log
+- 2026-11-04 22:49 — ✔ chapter08/jinja2 concluído
+- 2026-11-04 22:49 — → chapter08/udev (tentativa 1) — log: logs/08-udev.log
+- 2026-11-04 22:49 — ✔ chapter08/udev concluído
+- 2026-11-04 22:49 — → chapter08/man-db (tentativa 1) — log: logs/08-man-db.log
+- 2026-11-04 22:50 — ✔ chapter08/man-db concluído
+- 2026-11-04 22:50 — → chapter08/procps-ng (tentativa 1) — log: logs/08-procps-ng.log
+- 2026-11-04 22:50 — ✔ chapter08/procps-ng concluído
+- 2026-11-04 22:50 — → chapter08/util-linux (tentativa 1) — log: logs/08-util-linux.log
+- 2026-11-04 22:51 — ✔ chapter08/util-linux concluído
+- 2026-11-04 22:51 — → chapter08/e2fsprogs (tentativa 1) — log: logs/08-e2fsprogs.log
+- 2026-11-04 22:52 — ✔ chapter08/e2fsprogs concluído
+- 2026-11-04 22:52 — → chapter08/sysklogd (tentativa 1) — log: logs/08-sysklogd.log
+- 2026-11-04 22:52 — ✔ chapter08/sysklogd concluído
+- 2026-11-04 22:52 — → chapter08/sysvinit (tentativa 1) — log: logs/08-sysvinit.log
+- 2026-11-04 22:52 — ✔ chapter08/sysvinit concluído
+- 2026-11-04 22:52 — → chapter08/stripping (tentativa 1) — log: logs/08-stripping.log
+- 2026-11-04 22:52 — ✘ chapter08/stripping falhou na tentativa 1 (ver logs/08-stripping.log)
+- 2026-11-04 22:52 — → chapter08/stripping (tentativa 2) — log: logs/08-stripping.log
+- 2026-11-04 22:52 — ✘ chapter08/stripping falhou na tentativa 2 (ver logs/08-stripping.log)
+- 2026-11-04 22:52 — → chapter08/stripping (tentativa 3) — log: logs/08-stripping.log
+- 2026-11-04 22:52 — ✘ chapter08/stripping falhou na tentativa 3 (ver logs/08-stripping.log)
+- 2026-11-04 22:52 — Fim da etapa F5 (falhou) falhou em chapter08/stripping (1/1) — ver logs/08-stripping.log
+- 2026-11-04 22:52 — Orquestrador parado em F5 (f05-sistema-base.sh) — ver logs/run-all.log
+- 2026-11-05 07:49 — Início da etapa F5 — Sistema base (Cap. 8)
+- 2026-11-05 07:49 — → chapter08/stripping (tentativa 1) — log: logs/08-stripping.log
+- 2026-11-05 07:49 — ✔ chapter08/stripping concluído
+- 2026-11-05 07:49 — → chapter08/cleanup (tentativa 1) — log: logs/08-cleanup.log
+- 2026-11-05 07:49 — ✔ chapter08/cleanup concluído
+- 2026-11-05 07:49 — Fim da etapa F5 (aviso) 82 pacotes/secções; testes com falhas (tolerados, ver logs): Python acl e2fsprogs glibc libelf perl procps-ng tar util-linux 
+- 2026-11-05 07:49 — Início da etapa F6 — Configuração do sistema + identidade (Cap. 9)
+- 2026-11-05 07:49 — → f6-bootscripts (tentativa 1) — log: logs/09-bootscripts.log
+- 2026-11-05 07:49 — ✔ f6-bootscripts concluído
+- 2026-11-05 07:49 — → f6-config (tentativa 1) — log: logs/09-config.log
+- 2026-11-05 07:49 — ✔ f6-config concluído
+- 2026-11-05 07:49 — Fim da etapa F6 (ok) bootscripts, rede dhcpcd/eth0, inittab+ttyS0, pt-latin1, pt_PT.UTF-8, identidade da distro
+- 2026-11-05 07:49 — Início da etapa F7 — Kernel e boot (Cap. 10)
+- 2026-11-05 07:49 — → f7-kernel (tentativa 1) — log: logs/10-kernel.log
+- 2026-11-05 07:53 — ✔ f7-kernel concluído
+- 2026-11-05 07:53 — Fim da etapa F7 (aviso) kernel 6.16.1 compilado; opções não ativadas:  NLS_CP437 FB_EFI
+- 2026-11-05 07:53 — Início da etapa F8 — Pacotes BLFS
+- 2026-11-05 07:53 — → f8-bootscripts (tentativa 1) — log: logs/f8-bootscripts.log
+- 2026-11-05 07:53 — ✔ f8-bootscripts concluído
+- 2026-11-05 07:53 — → f8-libtasn1 (tentativa 1) — log: logs/f8-libtasn1.log
+- 2026-11-05 07:53 — ✔ f8-libtasn1 concluído
+- 2026-11-05 07:53 — → f8-p11-kit (tentativa 1) — log: logs/f8-p11-kit.log
+- 2026-11-05 07:54 — ✔ f8-p11-kit concluído
+- 2026-11-05 07:54 — → f8-make-ca (tentativa 1) — log: logs/f8-make-ca.log
+- 2026-11-05 07:54 — ✔ f8-make-ca concluído
+- 2026-11-05 07:54 — → f8-linux-pam (tentativa 1) — log: logs/f8-linux-pam.log
+- 2026-11-05 07:54 — ✔ f8-linux-pam concluído
+- 2026-11-05 07:54 — → f8-shadow (tentativa 1) — log: logs/f8-shadow.log
+- 2026-11-05 07:54 — ✔ f8-shadow concluído
+- 2026-11-05 07:54 — → f8-sudo (tentativa 1) — log: logs/f8-sudo.log
+- 2026-11-05 07:55 — ✔ f8-sudo concluído
+- 2026-11-05 07:55 — → f8-dhcpcd (tentativa 1) — log: logs/f8-dhcpcd.log
+- 2026-11-05 07:55 — ✔ f8-dhcpcd concluído
+- 2026-11-05 07:55 — → f8-libunistring (tentativa 1) — log: logs/f8-libunistring.log
+- 2026-11-05 07:56 — ✔ f8-libunistring concluído
+- 2026-11-05 07:56 — → f8-libidn2 (tentativa 1) — log: logs/f8-libidn2.log
+- 2026-11-05 07:56 — ✔ f8-libidn2 concluído
+- 2026-11-05 07:56 — → f8-libpsl (tentativa 1) — log: logs/f8-libpsl.log
+- 2026-11-05 07:56 — ✔ f8-libpsl concluído
+- 2026-11-05 07:56 — → f8-wget (tentativa 1) — log: logs/f8-wget.log
+- 2026-11-05 07:57 — ✔ f8-wget concluído
+- 2026-11-05 07:57 — → f8-curl (tentativa 1) — log: logs/f8-curl.log
+- 2026-11-05 07:57 — ✔ f8-curl concluído
+- 2026-11-05 07:57 — → f8-openssh (tentativa 1) — log: logs/f8-openssh.log
+- 2026-11-05 07:57 — ✔ f8-openssh concluído
+- 2026-11-05 07:57 — → f8-sshd-chaves (tentativa 1) — log: logs/f8-sshd-chaves.log
+- 2026-11-05 07:57 — ✔ f8-sshd-chaves concluído
+- 2026-11-05 07:57 — → f8-nano (tentativa 1) — log: logs/f8-nano.log
+- 2026-11-05 07:58 — ✔ f8-nano concluído
+- 2026-11-05 07:58 — → f8-cpio (tentativa 1) — log: logs/f8-cpio.log
+- 2026-11-05 07:58 — ✔ f8-cpio concluído
+- 2026-11-05 07:58 — → f8-dosfstools (tentativa 1) — log: logs/f8-dosfstools.log
+- 2026-11-05 07:58 — ✔ f8-dosfstools concluído
+- 2026-11-05 07:58 — → f8-popt (tentativa 1) — log: logs/f8-popt.log
+- 2026-11-05 07:58 — ✔ f8-popt concluído
+- 2026-11-05 07:58 — → f8-efivar (tentativa 1) — log: logs/f8-efivar.log
+- 2026-11-05 07:58 — ✔ f8-efivar concluído
+- 2026-11-05 07:58 — → f8-efibootmgr (tentativa 1) — log: logs/f8-efibootmgr.log
+- 2026-11-05 07:58 — ✔ f8-efibootmgr concluído
+- 2026-11-05 07:58 — → f8-hwdata (tentativa 1) — log: logs/f8-hwdata.log
+- 2026-11-05 07:58 — ✔ f8-hwdata concluído
+- 2026-11-05 07:58 — → f8-pciutils (tentativa 1) — log: logs/f8-pciutils.log
+- 2026-11-05 07:58 — ✔ f8-pciutils concluído
+- 2026-11-05 07:58 — → f8-libusb (tentativa 1) — log: logs/f8-libusb.log
+- 2026-11-05 07:58 — ✔ f8-libusb concluído
+- 2026-11-05 07:59 — → f8-usbutils (tentativa 1) — log: logs/f8-usbutils.log
+- 2026-11-05 07:59 — ✔ f8-usbutils concluído
+- 2026-11-05 07:59 — → f8-which (tentativa 1) — log: logs/f8-which.log
+- 2026-11-05 07:59 — ✔ f8-which concluído
+- 2026-11-05 07:59 — → f8-tree (tentativa 1) — log: logs/f8-tree.log
+- 2026-11-05 07:59 — ✔ f8-tree concluído
+- 2026-11-05 07:59 — → f8-git (tentativa 1) — log: logs/f8-git.log
+- 2026-11-05 07:59 — ✔ f8-git concluído
+- 2026-11-05 07:59 — → f8-lynx (tentativa 1) — log: logs/f8-lynx.log
+- 2026-11-05 07:59 — ✔ f8-lynx concluído
+- 2026-11-05 07:59 — → f8-bash-profile (tentativa 1) — log: logs/f8-bash-profile.log
+- 2026-11-05 07:59 — ✔ f8-bash-profile concluído
+- 2026-11-05 07:59 — → f8-skel-ninja (tentativa 1) — log: logs/f8-skel-ninja.log
+- 2026-11-05 07:59 — ✔ f8-skel-ninja concluído
+- 2026-11-05 07:59 — → f8-sudoers-ninja (tentativa 1) — log: logs/f8-sudoers-ninja.log
+- 2026-11-05 07:59 — ✔ f8-sudoers-ninja concluído
+- 2026-11-05 07:59 — → f8-limpeza (tentativa 1) — log: logs/f8-limpeza.log
+- 2026-11-05 07:59 — ✔ f8-limpeza concluído
+- 2026-11-05 07:59 — → f8-verificacao (tentativa 1) — log: logs/f8-verificacao.log
+- 2026-11-05 07:59 — ✔ f8-verificacao concluído
+- 2026-11-05 07:59 — Orquestrador parado em F8 (f08-blfs.sh) — ver logs/run-all.log
+- 2026-11-05 08:01 — Início da etapa F8 — Pacotes BLFS
+- 2026-11-05 08:01 — Fim da etapa F8 (ok) 34 passos BLFS: certificados, PAM/Shadow/Sudo, dhcpcd, Wget/cURL, OpenSSH, nano, utilitários, Git, Lynx, utilizador ninja
+- 2026-11-05 08:01 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-05 08:01 — → f9-initramfs (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-05 08:01 — ✘ f9-initramfs falhou na tentativa 1 (ver logs/f9-initramfs.log)
+- 2026-11-05 08:01 — → f9-initramfs (tentativa 2) — log: logs/f9-initramfs.log
+- 2026-11-05 08:01 — ✘ f9-initramfs falhou na tentativa 2 (ver logs/f9-initramfs.log)
+- 2026-11-05 08:01 — → f9-initramfs (tentativa 3) — log: logs/f9-initramfs.log
+- 2026-11-05 08:01 — ✘ f9-initramfs falhou na tentativa 3 (ver logs/f9-initramfs.log)
+- 2026-11-05 08:01 — Orquestrador parado em F9 (f09-live.sh) — ver logs/run-all.log
+- 2026-11-05 08:02 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-05 08:02 — → f9-initramfs (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-05 08:02 — ✔ f9-initramfs concluído
+- 2026-11-05 08:02 — → f9-squashfs (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-05 08:03 — ✔ f9-squashfs concluído
+- 2026-11-05 08:03 — Fim da etapa F9 (ok) initrd 3.6M, rootfs.squashfs 354M
+- 2026-11-05 08:03 — Início da etapa F10 — Geração da ISO
+- 2026-11-05 08:03 — → f10-iso-1793865789 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-05 08:03 — ✔ f10-iso-1793865789 concluído
+- 2026-11-05 08:03 — Fim da etapa F10 (ok) ISO 383M, sha256 be3a93444566a982…
+- 2026-11-05 08:03 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-05 08:03 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-05 08:03 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-05 08:03 — Teste bios: 7/7 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 08:03 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-05 08:04 — Teste uefi: 7/7 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 08:04 — Fim da etapa F11 (ok) BIOS 7/7 e UEFI 7/7 critérios aprovados
+- 2026-11-05 08:04 — Início da etapa F12 — Entrega
+- 2026-11-05 08:04 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-05 08:17 — → f8b-cmake (tentativa 1) — log: logs/f8b-cmake.log
+- 2026-11-05 08:21 — ✔ f8b-cmake concluído
+- 2026-11-05 08:22 — → f8b-llama-dev (tentativa 1) — log: logs/f8b-llama.log
+- 2026-11-05 08:25 — ✔ f8b-llama-dev concluído
+- 2026-11-05 08:26 — Início da etapa F8b — Inteligência artificial (llama.cpp + modelo)
+- 2026-11-05 08:26 — → f8b-llama-fonte (tentativa 1) — log: logs/f8b-llama-fonte.log
+- 2026-11-05 08:26 — ✔ f8b-llama-fonte concluído
+- 2026-11-05 08:26 — → f8b-llama (tentativa 1) — log: logs/f8b-llama.log
+- 2026-11-05 08:29 — ✔ f8b-llama concluído
+- 2026-11-05 08:29 — → f8b-modelo-baixar (tentativa 1) — log: logs/f8b-modelo-baixar.log
+- 2026-11-05 08:29 — ✔ f8b-modelo-baixar concluído
+- 2026-11-05 08:29 — → f8b-modelo-instalar (tentativa 1) — log: logs/f8b-modelo-instalar.log
+- 2026-11-05 08:29 — ✔ f8b-modelo-instalar concluído
+- 2026-11-05 08:29 — → f8b-comandos (tentativa 1) — log: logs/f8b-comandos.log
+- 2026-11-05 08:29 — ✔ f8b-comandos concluído
+- 2026-11-05 08:29 — → f8b-autoarranque (tentativa 1) — log: logs/f8b-autoarranque.log
+- 2026-11-05 08:29 — ✔ f8b-autoarranque concluído
+- 2026-11-05 08:29 — → f8b-verificacao (tentativa 1) — log: logs/f8b-verificacao.log
+- 2026-11-05 08:29 — ✔ f8b-verificacao concluído
+- 2026-11-05 08:29 — Fim da etapa F8b (ok) CMake 4.1.0, llama.cpp b12121 (todas as variantes CPU), Qwen2.5-1.5B Q4_K_M; ia-perguntar em 1.369117816 s no chroot
+- 2026-11-05 08:30 — Início da etapa F7 — Kernel e boot (Cap. 10)
+- 2026-11-05 08:30 — → f7-kernel-96c66b4b (tentativa 1) — log: logs/10-kernel.log
+- 2026-11-05 08:34 — ✔ f7-kernel-96c66b4b concluído
+- 2026-11-05 08:34 — Fim da etapa F7 (ok) kernel 6.16.1 compilado com todas as opções pedidas; fstab live
+- 2026-11-05 08:34 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-05 08:34 — → f9-initramfs-e7a4d23e (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-05 08:34 — ✔ f9-initramfs-e7a4d23e concluído
+- 2026-11-05 08:34 — → f9-squashfs-1793867692 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-05 08:35 — ✔ f9-squashfs-1793867692 concluído
+- 2026-11-05 08:35 — Fim da etapa F9 (ok) initrd 3.6M, rootfs.squashfs 1.5G
+- 2026-11-05 08:35 — Início da etapa F10 — Geração da ISO
+- 2026-11-05 08:35 — → f10-iso-1793867750 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-05 08:35 — ✔ f10-iso-1793867750 concluído
+- 2026-11-05 08:35 — Fim da etapa F10 (ok) ISO 1.5G, sha256 98c44dffe2736f25…
+- 2026-11-05 08:35 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-05 08:35 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-05 08:35 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-05 08:37 — Teste bios: 9/9 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 08:37 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-05 08:39 — Teste uefi: 9/9 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 08:39 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-05 08:40 — Teste persistência: OK 
+- 2026-11-05 08:40 — Fim da etapa F11 (ok) BIOS 9/9, UEFI 9/9, persistência OK
+- 2026-11-05 08:40 — Início da etapa F12 — Entrega
+- 2026-11-05 08:40 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-05 08:41 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-05 08:41 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-05 08:41 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-05 08:42 — Teste bios: 9/9 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 08:42 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-05 08:44 — Teste uefi: 9/9 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 08:44 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-05 08:45 — Teste persistência: OK 
+- 2026-11-05 08:45 — Fim da etapa F11 (ok) BIOS 9/9, UEFI 9/9, persistência OK
+- 2026-11-05 08:45 — Início da etapa F12 — Entrega
+- 2026-11-05 08:45 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-05 14:16 — Drivers: F7 (kernel base Arch, módulos), F8c (nova: firmware + Wi-Fi + som), F9-F12 repostas a pendente
+- 2026-11-05 14:16 — Início da etapa F7 — Kernel e boot (Cap. 10)
+- 2026-11-05 14:16 — → f7-kernel-608f2501 (tentativa 1) — log: logs/10-kernel.log
+- 2026-11-05 14:46 — ✔ f7-kernel-608f2501 concluído
+- 2026-11-05 14:46 — Fim da etapa F7 (ok) kernel 6.16.1 (base Arch 6.16.1.arch1-1) com todas as opções pedidas; 6256 módulos (137M); fstab live
+- 2026-11-05 14:46 — Início da etapa F8c — Drivers e firmware
+- 2026-11-05 14:46 — → f8c-fontes (tentativa 1) — log: logs/f8c-fontes.log
+- 2026-11-05 14:46 — ✔ f8c-fontes concluído
+- 2026-11-05 14:46 — → f8c-host-ferramentas (tentativa 1) — log: logs/f8c-host-ferramentas.log
+- 2026-11-05 14:46 — ✔ f8c-host-ferramentas concluído
+- 2026-11-05 14:46 — → f8c-firmware-20261019-2026.09.03 (tentativa 1) — log: logs/f8c-firmware.log
+- 2026-11-05 14:54 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 1 (ver logs/f8c-firmware.log)
+- 2026-11-05 14:54 — → f8c-firmware-20261019-2026.09.03 (tentativa 2) — log: logs/f8c-firmware.log
+- 2026-11-05 15:02 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 2 (ver logs/f8c-firmware.log)
+- 2026-11-05 15:02 — → f8c-firmware-20261019-2026.09.03 (tentativa 3) — log: logs/f8c-firmware.log
+- 2026-11-05 17:15 — Início da etapa F8c — Drivers e firmware
+- 2026-11-05 17:15 — → f8c-firmware-20261019-2026.09.03 (tentativa 1) — log: logs/f8c-firmware.log
+- 2026-11-05 17:16 — Início da etapa F8c — Drivers e firmware
+- 2026-11-05 17:16 — → f8c-firmware-20261019-2026.09.03 (tentativa 1) — log: logs/f8c-firmware.log
+- 2026-11-05 17:16 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 1 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:16 — → f8c-firmware-20261019-2026.09.03 (tentativa 2) — log: logs/f8c-firmware.log
+- 2026-11-05 17:16 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 1 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:16 — → f8c-firmware-20261019-2026.09.03 (tentativa 2) — log: logs/f8c-firmware.log
+- 2026-11-05 17:16 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 2 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:16 — → f8c-firmware-20261019-2026.09.03 (tentativa 3) — log: logs/f8c-firmware.log
+- 2026-11-05 17:17 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 2 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:17 — → f8c-firmware-20261019-2026.09.03 (tentativa 3) — log: logs/f8c-firmware.log
+- 2026-11-05 17:17 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 3 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:17 — Fim da etapa F8c (falhou) falhou em firmware (3/14) — ver logs/f8c-firmware.log
+- 2026-11-05 17:17 — Orquestrador parado em F8c (f08c-drivers.sh) — ver logs/run-all.log
+- 2026-11-05 17:17 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 3 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:17 — Fim da etapa F8c (falhou) falhou em firmware (3/14) — ver logs/f8c-firmware.log
+- 2026-11-05 17:17 — Orquestrador parado em F8c (f08c-drivers.sh) — ver logs/run-all.log
+- 2026-11-05 17:18 — Início da etapa F8c — Drivers e firmware
+- 2026-11-05 17:18 — → f8c-firmware-20261019-2026.09.03 (tentativa 1) — log: logs/f8c-firmware.log
+- 2026-11-05 17:26 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 1 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:26 — → f8c-firmware-20261019-2026.09.03 (tentativa 2) — log: logs/f8c-firmware.log
+- 2026-11-05 17:34 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 2 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:34 — → f8c-firmware-20261019-2026.09.03 (tentativa 3) — log: logs/f8c-firmware.log
+- 2026-11-05 17:42 — ✘ f8c-firmware-20261019-2026.09.03 falhou na tentativa 3 (ver logs/f8c-firmware.log)
+- 2026-11-05 17:42 — Fim da etapa F8c (falhou) falhou em firmware (3/14) — ver logs/f8c-firmware.log
+- 2026-11-05 17:42 — Orquestrador parado em F8c (f08c-drivers.sh) — ver logs/run-all.log
+- 2026-11-05 17:53 — Início da etapa F8c — Drivers e firmware
+- 2026-11-05 17:53 — → f8c-firmware-20261019-2026.09.03 (tentativa 1) — log: logs/f8c-firmware.log
+- 2026-11-05 18:01 — ✔ f8c-firmware-20261019-2026.09.03 concluído
+- 2026-11-05 18:01 — → f8c-microcodigo-20260925 (tentativa 1) — log: logs/f8c-microcodigo.log
+- 2026-11-05 18:01 — ✔ f8c-microcodigo-20260925 concluído
+- 2026-11-05 18:01 — → f8c-limpar-tmp (tentativa 1) — log: logs/f8c-limpar-tmp.log
+- 2026-11-05 18:01 — ✔ f8c-limpar-tmp concluído
+- 2026-11-05 18:01 — → f8c-bootscripts (tentativa 1) — log: logs/f8c-bootscripts.log
+- 2026-11-05 18:01 — ✔ f8c-bootscripts concluído
+- 2026-11-05 18:01 — → f8c-libnl (tentativa 1) — log: logs/f8c-libnl.log
+- 2026-11-05 18:01 — ✔ f8c-libnl concluído
+- 2026-11-05 18:01 — → f8c-wpa_supplicant (tentativa 1) — log: logs/f8c-wpa_supplicant.log
+- 2026-11-05 18:01 — ✔ f8c-wpa_supplicant concluído
+- 2026-11-05 18:01 — → f8c-iw (tentativa 1) — log: logs/f8c-iw.log
+- 2026-11-05 18:01 — ✔ f8c-iw concluído
+- 2026-11-05 18:01 — → f8c-alsa-lib (tentativa 1) — log: logs/f8c-alsa-lib.log
+- 2026-11-05 18:01 — ✔ f8c-alsa-lib concluído
+- 2026-11-05 18:01 — → f8c-alsa-utils (tentativa 1) — log: logs/f8c-alsa-utils.log
+- 2026-11-05 18:02 — ✔ f8c-alsa-utils concluído
+- 2026-11-05 18:02 — → f8c-ligar-wifi-df137c01 (tentativa 1) — log: logs/f8c-ligar-wifi.log
+- 2026-11-05 18:02 — ✔ f8c-ligar-wifi-df137c01 concluído
+- 2026-11-05 18:02 — → f8c-limpeza (tentativa 1) — log: logs/f8c-limpeza.log
+- 2026-11-05 18:02 — ✔ f8c-limpeza concluído
+- 2026-11-05 18:02 — → f8c-verificacao-1793901190 (tentativa 1) — log: logs/f8c-verificacao.log
+- 2026-11-05 18:02 — ✔ f8c-verificacao-1793901190 concluído
+- 2026-11-05 18:02 — Fim da etapa F8c (ok) firmware 20261019 (3937 ficheiros, 790M, .xz), regdb 2026.09.03, microcódigo 18M; libnl, wpa_supplicant, iw, alsa-lib, alsa-utils, ligar-wifi
+- 2026-11-05 18:02 — Início da etapa F8d — Interface gráfica (Xorg + Xfce, estilo macOS)
+- 2026-11-05 18:02 — → f8d-copia-seguranca (tentativa 1) — log: logs/f8d-copia-seguranca.log
+- 2026-11-05 18:05 — ✔ f8d-copia-seguranca concluído
+- 2026-11-05 18:05 — → f8d-xorg7 (tentativa 1) — log: logs/f8d-xorg7.log
+- 2026-11-05 18:06 — ✔ f8d-xorg7 concluído
+- 2026-11-05 18:06 — → f8d-util-macros (tentativa 1) — log: logs/f8d-util-macros.log
+- 2026-11-05 18:06 — ✔ f8d-util-macros concluído
+- 2026-11-05 18:06 — → f8d-xorgproto (tentativa 1) — log: logs/f8d-xorgproto.log
+- 2026-11-05 18:06 — ✔ f8d-xorgproto concluído
+- 2026-11-05 18:06 — → f8d-libXau (tentativa 1) — log: logs/f8d-libXau.log
+- 2026-11-05 18:06 — ✔ f8d-libXau concluído
+- 2026-11-05 18:06 — → f8d-xcb-proto (tentativa 1) — log: logs/f8d-xcb-proto.log
+- 2026-11-05 18:06 — ✔ f8d-xcb-proto concluído
+- 2026-11-05 18:06 — → f8d-libXdmcp (tentativa 1) — log: logs/f8d-libXdmcp.log
+- 2026-11-05 18:06 — ✔ f8d-libXdmcp concluído
+- 2026-11-05 18:06 — → f8d-libxcb (tentativa 1) — log: logs/f8d-libxcb.log
+- 2026-11-05 18:07 — ✔ f8d-libxcb concluído
+- 2026-11-05 18:07 — → f8d-libpng (tentativa 1) — log: logs/f8d-libpng.log
+- 2026-11-05 18:07 — ✔ f8d-libpng concluído
+- 2026-11-05 18:07 — → f8d-pixman (tentativa 1) — log: logs/f8d-pixman.log
+- 2026-11-05 18:07 — ✔ f8d-pixman concluído
+- 2026-11-05 18:07 — → f8d-docutils (tentativa 1) — log: logs/f8d-docutils.log
+- 2026-11-05 18:07 — ✔ f8d-docutils concluído
+- 2026-11-05 18:07 — → f8d-icu (tentativa 1) — log: logs/f8d-icu.log
+- 2026-11-05 18:08 — ✔ f8d-icu concluído
+- 2026-11-05 18:08 — → f8d-libxml2 (tentativa 1) — log: logs/f8d-libxml2.log
+- 2026-11-05 18:08 — ✔ f8d-libxml2 concluído
+- 2026-11-05 18:08 — → f8d-libxslt (tentativa 1) — log: logs/f8d-libxslt.log
+- 2026-11-05 18:09 — ✔ f8d-libxslt concluído
+- 2026-11-05 18:09 — → f8d-pcre2 (tentativa 1) — log: logs/f8d-pcre2.log
+- 2026-11-05 18:09 — ✔ f8d-pcre2 concluído
+- 2026-11-05 18:09 — → f8d-glib2 (tentativa 1) — log: logs/f8d-glib2.log
+- 2026-11-05 18:10 — ✔ f8d-glib2 concluído
+- 2026-11-05 18:10 — → f8d-freetype2 (tentativa 1) — log: logs/f8d-freetype2.log
+- 2026-11-05 18:10 — ✔ f8d-freetype2 concluído
+- 2026-11-05 18:10 — → f8d-graphite2 (tentativa 1) — log: logs/f8d-graphite2.log
+- 2026-11-05 18:10 — ✔ f8d-graphite2 concluído
+- 2026-11-05 18:10 — → f8d-harfbuzz (tentativa 1) — log: logs/f8d-harfbuzz.log
+- 2026-11-05 18:11 — ✔ f8d-harfbuzz concluído
+- 2026-11-05 18:11 — → f8d-freetype2-harfbuzz (tentativa 1) — log: logs/f8d-freetype2-harfbuzz.log
+- 2026-11-05 18:11 — ✔ f8d-freetype2-harfbuzz concluído
+- 2026-11-05 18:11 — → f8d-fontconfig (tentativa 1) — log: logs/f8d-fontconfig.log
+- 2026-11-05 18:11 — ✔ f8d-fontconfig concluído
+- 2026-11-05 18:11 — → f8d-x7lib (tentativa 1) — log: logs/f8d-x7lib.log
+- 2026-11-05 18:17 — ✔ f8d-x7lib concluído
+- 2026-11-05 18:17 — → f8d-libxcvt (tentativa 1) — log: logs/f8d-libxcvt.log
+- 2026-11-05 18:17 — ✔ f8d-libxcvt concluído
+- 2026-11-05 18:17 — → f8d-libdrm (tentativa 1) — log: logs/f8d-libdrm.log
+- 2026-11-05 18:17 — ✔ f8d-libdrm concluído
+- 2026-11-05 18:17 — → f8d-Mako (tentativa 1) — log: logs/f8d-Mako.log
+- 2026-11-05 18:17 — ✔ f8d-Mako concluído
+- 2026-11-05 18:17 — → f8d-cython (tentativa 1) — log: logs/f8d-cython.log
+- 2026-11-05 18:19 — ✔ f8d-cython concluído
+- 2026-11-05 18:19 — → f8d-libyaml (tentativa 1) — log: logs/f8d-libyaml.log
+- 2026-11-05 18:19 — ✔ f8d-libyaml concluído
+- 2026-11-05 18:19 — → f8d-PyYAML (tentativa 1) — log: logs/f8d-PyYAML.log
+- 2026-11-05 18:20 — ✔ f8d-PyYAML concluído
+- 2026-11-05 18:20 — → f8d-llvm (tentativa 1) — log: logs/f8d-llvm.log
+- 2026-11-05 18:55 — ✔ f8d-llvm concluído
+- 2026-11-05 18:55 — → f8d-spirv-headers (tentativa 1) — log: logs/f8d-spirv-headers.log
+- 2026-11-05 18:55 — ✔ f8d-spirv-headers concluído
+- 2026-11-05 18:55 — → f8d-spirv-tools (tentativa 1) — log: logs/f8d-spirv-tools.log
+- 2026-11-05 18:57 — ✔ f8d-spirv-tools concluído
+- 2026-11-05 18:57 — → f8d-spirv-llvm-translator (tentativa 1) — log: logs/f8d-spirv-llvm-translator.log
+- 2026-11-05 18:58 — ✔ f8d-spirv-llvm-translator concluído
+- 2026-11-05 18:58 — → f8d-libclc (tentativa 1) — log: logs/f8d-libclc.log
+- 2026-11-05 19:00 — ✔ f8d-libclc concluído
+- 2026-11-05 19:00 — → f8d-mesa (tentativa 1) — log: logs/f8d-mesa.log
+- 2026-11-05 19:03 — ✔ f8d-mesa concluído
+- 2026-11-05 19:03 — → f8d-mesa-vgem (tentativa 1) — log: logs/f8d-mesa-vgem.log
+- 2026-11-05 19:03 — ✔ f8d-mesa-vgem concluído
+- 2026-11-05 19:03 — → f8d-xbitmaps (tentativa 1) — log: logs/f8d-xbitmaps.log
+- 2026-11-05 19:03 — ✔ f8d-xbitmaps concluído
+- 2026-11-05 19:03 — → f8d-xcb-util (tentativa 1) — log: logs/f8d-xcb-util.log
+- 2026-11-05 19:03 — ✔ f8d-xcb-util concluído
+- 2026-11-05 19:03 — → f8d-x7app (tentativa 1) — log: logs/f8d-x7app.log
+- 2026-11-05 19:08 — ✘ f8d-x7app falhou na tentativa 1 (ver logs/f8d-x7app.log)
+- 2026-11-05 19:08 — → f8d-x7app (tentativa 2) — log: logs/f8d-x7app.log
+- 2026-11-05 19:12 — ✔ f8d-x7app concluído
+- 2026-11-05 19:12 — → f8d-xcursor-themes (tentativa 1) — log: logs/f8d-xcursor-themes.log
+- 2026-11-05 19:12 — ✔ f8d-xcursor-themes concluído
+- 2026-11-05 19:12 — → f8d-x7font (tentativa 1) — log: logs/f8d-x7font.log
+- 2026-11-05 19:13 — ✔ f8d-x7font concluído
+- 2026-11-05 19:13 — → f8d-xkeyboard-config (tentativa 1) — log: logs/f8d-xkeyboard-config.log
+- 2026-11-05 19:13 — ✔ f8d-xkeyboard-config concluído
+- 2026-11-05 19:13 — → f8d-dbus (tentativa 1) — log: logs/f8d-dbus.log
+- 2026-11-05 19:13 — ✔ f8d-dbus concluído
+- 2026-11-05 19:13 — → f8d-dbus-bootscript (tentativa 1) — log: logs/f8d-dbus-bootscript.log
+- 2026-11-05 19:13 — ✔ f8d-dbus-bootscript concluído
+- 2026-11-05 19:13 — → f8d-elogind (tentativa 1) — log: logs/f8d-elogind.log
+- 2026-11-05 19:14 — ✔ f8d-elogind concluído
+- 2026-11-05 19:14 — → f8d-duktape (tentativa 1) — log: logs/f8d-duktape.log
+- 2026-11-05 19:14 — ✔ f8d-duktape concluído
+- 2026-11-05 19:14 — → f8d-polkit (tentativa 1) — log: logs/f8d-polkit.log
+- 2026-11-05 19:14 — ✔ f8d-polkit concluído
+- 2026-11-05 19:14 — → f8d-libtirpc (tentativa 1) — log: logs/f8d-libtirpc.log
+- 2026-11-05 19:14 — ✔ f8d-libtirpc concluído
+- 2026-11-05 19:14 — → f8d-libepoxy (tentativa 1) — log: logs/f8d-libepoxy.log
+- 2026-11-05 19:14 — ✔ f8d-libepoxy concluído
+- 2026-11-05 19:14 — → f8d-xorg-server (tentativa 1) — log: logs/f8d-xorg-server.log
+- 2026-11-05 19:15 — ✔ f8d-xorg-server concluído
+- 2026-11-05 19:15 — → f8d-xorg-teclado (tentativa 1) — log: logs/f8d-xorg-teclado.log
+- 2026-11-05 19:15 — ✔ f8d-xorg-teclado concluído
+- 2026-11-05 19:15 — → f8d-libevdev (tentativa 1) — log: logs/f8d-libevdev.log
+- 2026-11-05 19:15 — ✔ f8d-libevdev concluído
+- 2026-11-05 19:15 — → f8d-mtdev (tentativa 1) — log: logs/f8d-mtdev.log
+- 2026-11-05 19:15 — ✔ f8d-mtdev concluído
+- 2026-11-05 19:15 — → f8d-libinput (tentativa 1) — log: logs/f8d-libinput.log
+- 2026-11-05 19:15 — ✔ f8d-libinput concluído
+- 2026-11-05 19:15 — → f8d-xorg-libinput-driver (tentativa 1) — log: logs/f8d-xorg-libinput-driver.log
+- 2026-11-05 19:15 — ✔ f8d-xorg-libinput-driver concluído
+- 2026-11-05 19:15 — → f8d-xinit (tentativa 1) — log: logs/f8d-xinit.log
+- 2026-11-05 19:15 — ✔ f8d-xinit concluído
+- 2026-11-05 19:15 — → f8d-at-spi2-core (tentativa 1) — log: logs/f8d-at-spi2-core.log
+- 2026-11-05 19:15 — ✔ f8d-at-spi2-core concluído
+- 2026-11-05 19:15 — → f8d-fribidi (tentativa 1) — log: logs/f8d-fribidi.log
+- 2026-11-05 19:15 — ✔ f8d-fribidi concluído
+- 2026-11-05 19:15 — → f8d-cairo (tentativa 1) — log: logs/f8d-cairo.log
+- 2026-11-05 19:15 — ✔ f8d-cairo concluído
+- 2026-11-05 19:15 — → f8d-pango (tentativa 1) — log: logs/f8d-pango.log
+- 2026-11-05 19:15 — ✔ f8d-pango concluído
+- 2026-11-05 19:15 — → f8d-libssh2 (tentativa 1) — log: logs/f8d-libssh2.log
+- 2026-11-05 19:16 — ✔ f8d-libssh2 concluído
+- 2026-11-05 19:16 — → f8d-sqlite (tentativa 1) — log: logs/f8d-sqlite.log
+- 2026-11-05 19:16 — ✔ f8d-sqlite concluído
+- 2026-11-05 19:16 — → f8d-rust (tentativa 1) — log: logs/f8d-rust.log
+- 2026-11-05 19:42 — ✔ f8d-rust concluído
+- 2026-11-05 19:42 — → f8d-cargo-c (tentativa 1) — log: logs/f8d-cargo-c.log
+- 2026-11-05 19:45 — ✔ f8d-cargo-c concluído
+- 2026-11-05 19:45 — → f8d-nasm (tentativa 1) — log: logs/f8d-nasm.log
+- 2026-11-05 19:45 — ✔ f8d-nasm concluído
+- 2026-11-05 19:45 — → f8d-yasm (tentativa 1) — log: logs/f8d-yasm.log
+- 2026-11-05 19:45 — ✔ f8d-yasm concluído
+- 2026-11-05 19:45 — → f8d-libjpeg (tentativa 1) — log: logs/f8d-libjpeg.log
+- 2026-11-05 19:46 — ✔ f8d-libjpeg concluído
+- 2026-11-05 19:46 — → f8d-shared-mime-info (tentativa 1) — log: logs/f8d-shared-mime-info.log
+- 2026-11-05 19:46 — ✔ f8d-shared-mime-info concluído
+- 2026-11-05 19:46 — → f8d-libtiff (tentativa 1) — log: logs/f8d-libtiff.log
+- 2026-11-05 19:46 — ✔ f8d-libtiff concluído
+- 2026-11-05 19:46 — → f8d-gdk-pixbuf (tentativa 1) — log: logs/f8d-gdk-pixbuf.log
+- 2026-11-05 19:46 — ✔ f8d-gdk-pixbuf concluído
+- 2026-11-05 19:46 — → f8d-librsvg (tentativa 1) — log: logs/f8d-librsvg.log
+- 2026-11-05 19:49 — ✔ f8d-librsvg concluído
+- 2026-11-05 19:49 — → f8d-pixbuf-loaders (tentativa 1) — log: logs/f8d-pixbuf-loaders.log
+- 2026-11-05 19:49 — ✔ f8d-pixbuf-loaders concluído
+- 2026-11-05 19:49 — → f8d-hicolor-icon-theme (tentativa 1) — log: logs/f8d-hicolor-icon-theme.log
+- 2026-11-05 19:49 — ✔ f8d-hicolor-icon-theme concluído
+- 2026-11-05 19:49 — → f8d-iso-codes (tentativa 1) — log: logs/f8d-iso-codes.log
+- 2026-11-05 19:49 — ✔ f8d-iso-codes concluído
+- 2026-11-05 19:50 — → f8d-wayland (tentativa 1) — log: logs/f8d-wayland.log
+- 2026-11-05 19:50 — ✔ f8d-wayland concluído
+- 2026-11-05 19:50 — → f8d-wayland-protocols (tentativa 1) — log: logs/f8d-wayland-protocols.log
+- 2026-11-05 19:50 — ✔ f8d-wayland-protocols concluído
+- 2026-11-05 19:50 — → f8d-libxkbcommon (tentativa 1) — log: logs/f8d-libxkbcommon.log
+- 2026-11-05 19:50 — ✔ f8d-libxkbcommon concluído
+- 2026-11-05 19:50 — → f8d-gtk3 (tentativa 1) — log: logs/f8d-gtk3.log
+- 2026-11-05 19:51 — ✔ f8d-gtk3 concluído
+- 2026-11-05 19:51 — → f8d-adwaita-icon-theme (tentativa 1) — log: logs/f8d-adwaita-icon-theme.log
+- 2026-11-05 19:51 — ✔ f8d-adwaita-icon-theme concluído
+- 2026-11-05 19:51 — → f8d-startup-notification (tentativa 1) — log: logs/f8d-startup-notification.log
+- 2026-11-05 19:51 — ✔ f8d-startup-notification concluído
+- 2026-11-05 19:51 — → f8d-libwnck (tentativa 1) — log: logs/f8d-libwnck.log
+- 2026-11-05 19:51 — ✔ f8d-libwnck concluído
+- 2026-11-05 19:51 — → f8d-libdisplay-info (tentativa 1) — log: logs/f8d-libdisplay-info.log
+- 2026-11-05 19:51 — ✔ f8d-libdisplay-info concluído
+- 2026-11-05 19:51 — → f8d-xfce4-dev-tools (tentativa 1) — log: logs/f8d-xfce4-dev-tools.log
+- 2026-11-05 19:51 — ✔ f8d-xfce4-dev-tools concluído
+- 2026-11-05 19:51 — → f8d-libxfce4util (tentativa 1) — log: logs/f8d-libxfce4util.log
+- 2026-11-05 19:51 — ✔ f8d-libxfce4util concluído
+- 2026-11-05 19:51 — → f8d-xfconf (tentativa 1) — log: logs/f8d-xfconf.log
+- 2026-11-05 19:51 — ✔ f8d-xfconf concluído
+- 2026-11-05 19:51 — → f8d-libxfce4ui (tentativa 1) — log: logs/f8d-libxfce4ui.log
+- 2026-11-05 19:51 — ✔ f8d-libxfce4ui concluído
+- 2026-11-05 19:51 — → f8d-libxfce4windowing (tentativa 1) — log: logs/f8d-libxfce4windowing.log
+- 2026-11-05 19:51 — ✔ f8d-libxfce4windowing concluído
+- 2026-11-05 19:51 — → f8d-desktop-file-utils (tentativa 1) — log: logs/f8d-desktop-file-utils.log
+- 2026-11-05 19:51 — ✔ f8d-desktop-file-utils concluído
+- 2026-11-05 19:52 — → f8d-exo (tentativa 1) — log: logs/f8d-exo.log
+- 2026-11-05 19:52 — ✔ f8d-exo concluído
+- 2026-11-05 19:52 — → f8d-garcon (tentativa 1) — log: logs/f8d-garcon.log
+- 2026-11-05 19:52 — ✔ f8d-garcon concluído
+- 2026-11-05 19:52 — → f8d-xfce4-panel (tentativa 1) — log: logs/f8d-xfce4-panel.log
+- 2026-11-05 19:52 — ✔ f8d-xfce4-panel concluído
+- 2026-11-05 19:52 — → f8d-xfce4-session (tentativa 1) — log: logs/f8d-xfce4-session.log
+- 2026-11-05 19:52 — ✔ f8d-xfce4-session concluído
+- 2026-11-05 19:52 — → f8d-xfwm4 (tentativa 1) — log: logs/f8d-xfwm4.log
+- 2026-11-05 19:53 — ✔ f8d-xfwm4 concluído
+- 2026-11-05 19:53 — → f8d-libnotify (tentativa 1) — log: logs/f8d-libnotify.log
+- 2026-11-05 19:53 — ✔ f8d-libnotify concluído
+- 2026-11-05 19:53 — → f8d-libgudev (tentativa 1) — log: logs/f8d-libgudev.log
+- 2026-11-05 19:53 — ✔ f8d-libgudev concluído
+- 2026-11-05 19:53 — → f8d-thunar (tentativa 1) — log: logs/f8d-thunar.log
+- 2026-11-05 19:53 — ✔ f8d-thunar concluído
+- 2026-11-05 19:53 — → f8d-xfdesktop (tentativa 1) — log: logs/f8d-xfdesktop.log
+- 2026-11-05 19:53 — ✔ f8d-xfdesktop concluído
+- 2026-11-05 19:53 — → f8d-libogg (tentativa 1) — log: logs/f8d-libogg.log
+- 2026-11-05 19:53 — ✔ f8d-libogg concluído
+- 2026-11-05 19:53 — → f8d-libvorbis (tentativa 1) — log: logs/f8d-libvorbis.log
+- 2026-11-05 19:53 — ✔ f8d-libvorbis concluído
+- 2026-11-05 19:53 — → f8d-sound-theme-freedesktop (tentativa 1) — log: logs/f8d-sound-theme-freedesktop.log
+- 2026-11-05 19:53 — ✔ f8d-sound-theme-freedesktop concluído
+- 2026-11-05 19:53 — → f8d-libcanberra (tentativa 1) — log: logs/f8d-libcanberra.log
+- 2026-11-05 19:53 — ✔ f8d-libcanberra concluído
+- 2026-11-05 19:53 — → f8d-libxklavier (tentativa 1) — log: logs/f8d-libxklavier.log
+- 2026-11-05 19:54 — ✔ f8d-libxklavier concluído
+- 2026-11-05 19:54 — → f8d-xfce4-settings (tentativa 1) — log: logs/f8d-xfce4-settings.log
+- 2026-11-05 19:54 — ✔ f8d-xfce4-settings concluído
+- 2026-11-05 19:54 — → f8d-fast_float (tentativa 1) — log: logs/f8d-fast_float.log
+- 2026-11-05 19:54 — ✔ f8d-fast_float concluído
+- 2026-11-05 19:54 — → f8d-vte (tentativa 1) — log: logs/f8d-vte.log
+- 2026-11-05 19:54 — ✔ f8d-vte concluído
+- 2026-11-05 19:54 — → f8d-xfce4-terminal (tentativa 1) — log: logs/f8d-xfce4-terminal.log
+- 2026-11-05 19:54 — ✘ f8d-xfce4-terminal falhou na tentativa 1 (ver logs/f8d-xfce4-terminal.log)
+- 2026-11-05 19:54 — → f8d-xfce4-terminal (tentativa 2) — log: logs/f8d-xfce4-terminal.log
+- 2026-11-05 19:54 — ✘ f8d-xfce4-terminal falhou na tentativa 2 (ver logs/f8d-xfce4-terminal.log)
+- 2026-11-05 19:54 — → f8d-xfce4-terminal (tentativa 3) — log: logs/f8d-xfce4-terminal.log
+- 2026-11-05 19:54 — ✘ f8d-xfce4-terminal falhou na tentativa 3 (ver logs/f8d-xfce4-terminal.log)
+- 2026-11-05 19:54 — Fim da etapa F8d (falhou) falhou em xfce4-terminal (105/123) — ver logs/f8d-xfce4-terminal.log
+- 2026-11-05 19:54 — Orquestrador parado em F8d (f08d-gui.sh) — ver logs/run-all.log
+- 2026-11-05 19:56 — Início da etapa F8d — Interface gráfica (Xorg + Xfce, estilo macOS)
+- 2026-11-05 19:56 — → f8d-xfce4-terminal (tentativa 1) — log: logs/f8d-xfce4-terminal.log
+- 2026-11-05 19:56 — ✔ f8d-xfce4-terminal concluído
+- 2026-11-05 19:56 — → f8d-xfce4-appfinder (tentativa 1) — log: logs/f8d-xfce4-appfinder.log
+- 2026-11-05 19:56 — ✔ f8d-xfce4-appfinder concluído
+- 2026-11-05 19:56 — → f8d-tumbler (tentativa 1) — log: logs/f8d-tumbler.log
+- 2026-11-05 19:57 — ✔ f8d-tumbler concluído
+- 2026-11-05 19:57 — → f8d-xfce4-notifyd (tentativa 1) — log: logs/f8d-xfce4-notifyd.log
+- 2026-11-05 19:57 — ✔ f8d-xfce4-notifyd concluído
+- 2026-11-05 19:57 — → f8d-itstool (tentativa 1) — log: logs/f8d-itstool.log
+- 2026-11-05 19:57 — ✔ f8d-itstool concluído
+- 2026-11-05 19:57 — → f8d-libgpg-error (tentativa 1) — log: logs/f8d-libgpg-error.log
+- 2026-11-05 19:57 — ✔ f8d-libgpg-error concluído
+- 2026-11-05 19:57 — → f8d-libgcrypt (tentativa 1) — log: logs/f8d-libgcrypt.log
+- 2026-11-05 19:57 — ✔ f8d-libgcrypt concluído
+- 2026-11-05 19:57 — → f8d-lightdm (tentativa 1) — log: logs/f8d-lightdm.log
+- 2026-11-05 19:57 — ✔ f8d-lightdm concluído
+- 2026-11-05 19:57 — → f8d-lightdm-bootscript (tentativa 1) — log: logs/f8d-lightdm-bootscript.log
+- 2026-11-05 19:57 — ✔ f8d-lightdm-bootscript concluído
+- 2026-11-05 19:57 — → f8d-lightdm-runlevel5 (tentativa 1) — log: logs/f8d-lightdm-runlevel5.log
+- 2026-11-05 19:57 — ✘ f8d-lightdm-runlevel5 falhou na tentativa 1 (ver logs/f8d-lightdm-runlevel5.log)
+- 2026-11-05 19:57 — → f8d-lightdm-runlevel5 (tentativa 2) — log: logs/f8d-lightdm-runlevel5.log
+- 2026-11-05 19:57 — ✘ f8d-lightdm-runlevel5 falhou na tentativa 2 (ver logs/f8d-lightdm-runlevel5.log)
+- 2026-11-05 19:57 — → f8d-lightdm-runlevel5 (tentativa 3) — log: logs/f8d-lightdm-runlevel5.log
+- 2026-11-05 19:57 — ✘ f8d-lightdm-runlevel5 falhou na tentativa 3 (ver logs/f8d-lightdm-runlevel5.log)
+- 2026-11-05 19:57 — Fim da etapa F8d (falhou) falhou em lightdm-runlevel5 (114/124) — ver logs/f8d-lightdm-runlevel5.log
+- 2026-11-05 19:57 — Orquestrador parado em F8d (f08d-gui.sh) — ver logs/run-all.log
+- 2026-11-05 19:58 — Início da etapa F8d — Interface gráfica (Xorg + Xfce, estilo macOS)
+- 2026-11-05 19:59 — → f8d-lightdm-runlevel5 (tentativa 1) — log: logs/f8d-lightdm-runlevel5.log
+- 2026-11-05 19:59 — ✔ f8d-lightdm-runlevel5 concluído
+- 2026-11-05 19:59 — → f8d-TTF-and-OTF-fonts (tentativa 1) — log: logs/f8d-TTF-and-OTF-fonts.log
+- 2026-11-05 19:59 — ✔ f8d-TTF-and-OTF-fonts concluído
+- 2026-11-05 19:59 — → f8d-tema-descarregar (tentativa 1) — log: logs/f8d-tema-descarregar.log
+- 2026-11-05 19:59 — ✔ f8d-tema-descarregar concluído
+- 2026-11-05 19:59 — → f8d-tema-docklike (tentativa 1) — log: logs/f8d-tema-docklike.log
+- 2026-11-05 19:59 — ✔ f8d-tema-docklike concluído
+- 2026-11-05 19:59 — → f8d-tema-gtk (tentativa 1) — log: logs/f8d-tema-gtk.log
+- 2026-11-05 19:59 — ✔ f8d-tema-gtk concluído
+- 2026-11-05 19:59 — → f8d-tema-icones (tentativa 1) — log: logs/f8d-tema-icones.log
+- 2026-11-05 19:59 — ✔ f8d-tema-icones concluído
+- 2026-11-05 19:59 — → f8d-tema-cursores (tentativa 1) — log: logs/f8d-tema-cursores.log
+- 2026-11-05 19:59 — ✔ f8d-tema-cursores concluído
+- 2026-11-05 19:59 — → f8d-tema-fontes (tentativa 1) — log: logs/f8d-tema-fontes.log
+- 2026-11-05 19:59 — ✔ f8d-tema-fontes concluído
+- 2026-11-05 19:59 — → f8d-tema-config (tentativa 1) — log: logs/f8d-tema-config.log
+- 2026-11-05 19:59 — ✔ f8d-tema-config concluído
+- 2026-11-05 19:59 — → f8d-tema-verificar (tentativa 1) — log: logs/f8d-tema-verificar.log
+- 2026-11-05 19:59 — ✔ f8d-tema-verificar concluído
+- 2026-11-05 19:59 — → f8d-machine-id (tentativa 1) — log: logs/f8d-machine-id.log
+- 2026-11-05 19:59 — ✔ f8d-machine-id concluído
+- 2026-11-05 19:59 — Fim da etapa F8d (ok) 124 passos: Xorg, Mesa, GTK3, Xfce 4.20, LightDM e tema ao estilo do macOS
+- 2026-11-05 19:59 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-05 19:59 — → f9-initramfs-e7a4d23e (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-05 19:59 — ✔ f9-initramfs-e7a4d23e concluído
+- 2026-11-05 19:59 — → f9-squashfs-1793908787 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-05 20:02 — ✔ f9-squashfs-1793908787 concluído
+- 2026-11-05 20:02 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-05 20:02 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 2.8G
+- 2026-11-05 20:02 — Início da etapa F10 — Geração da ISO
+- 2026-11-05 20:02 — → f10-iso-1793908930 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-05 20:02 — ✔ f10-iso-1793908930 concluído
+- 2026-11-05 20:02 — Fim da etapa F10 (ok) ISO 2.8G, sha256 f657de257198501d…
+- 2026-11-05 20:03 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-05 20:03 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-05 20:03 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-05 20:04 — Teste bios: 13/13 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 20:04 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-05 20:07 — Teste uefi: 13/13 aprovados, 0 falhas, 0 lentos 
+- 2026-11-05 20:07 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-05 20:07 — Teste persistência: OK 
+- 2026-11-05 20:07 — Fim da etapa F11 (ok) BIOS 13/13, UEFI 13/13, persistência OK
+- 2026-11-05 20:07 — Início da etapa F12 — Entrega
+- 2026-11-05 20:08 — F11 (agente): antes da execução, critério 13 do teste-qemu.exp passou a procurar modesetting/Fatal server error em /var/log/Xorg.0.log E /var/log/lightdm/x-0.log (e mostra lightdm.log, seat0-greeter.log e /dev/dri se falhar); F11 ok à primeira (BIOS 13/13, UEFI 13/13, persistência OK); o X só escreve em /var/log/lightdm/x-0.log
+- 2026-11-05 20:08 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-06 07:52 — Início da etapa F8d — Interface gráfica (Xorg + Xfce, estilo macOS)
+- 2026-11-06 07:52 — → f8d-tema-config (tentativa 1) — log: logs/f8d-tema-config.log
+- 2026-11-06 07:52 — ✔ f8d-tema-config concluído
+- 2026-11-06 07:52 — → f8d-tema-verificar (tentativa 1) — log: logs/f8d-tema-verificar.log
+- 2026-11-06 07:52 — ✔ f8d-tema-verificar concluído
+- 2026-11-06 07:52 — Fim da etapa F8d (ok) 124 passos: Xorg, Mesa, GTK3, Xfce 4.20, LightDM e tema ao estilo do macOS
+- 2026-11-06 07:52 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-06 07:52 — → f9-initramfs-e7a4d23e (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-06 07:52 — ✔ f9-initramfs-e7a4d23e concluído
+- 2026-11-06 07:52 — → f9-squashfs-1793951577 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-06 07:56 — ✔ f9-squashfs-1793951577 concluído
+- 2026-11-06 07:56 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-06 07:56 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 2.8G
+- 2026-11-06 07:56 — Início da etapa F10 — Geração da ISO
+- 2026-11-06 07:56 — → f10-iso-1793951766 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-06 07:56 — ✔ f10-iso-1793951766 concluído
+- 2026-11-06 07:56 — Fim da etapa F10 (ok) ISO 2.8G, sha256 882c220bcba65f0a…
+- 2026-11-06 07:56 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-06 07:56 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-06 07:56 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-06 07:59 — Teste bios: 13/13 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 07:59 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-06 08:02 — Teste uefi: 13/13 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 08:02 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-06 08:02 — Teste persistência: OK 
+- 2026-11-06 08:02 — Fim da etapa F11 (ok) BIOS 13/13, UEFI 13/13, persistência OK
+- 2026-11-06 08:02 — Início da etapa F12 — Entrega
+- 2026-11-06 08:03 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-06 12:31 — Início da etapa F8d — Interface gráfica (Xorg + Xfce, estilo macOS)
+- 2026-11-06 12:32 — → f8d-tema-config (tentativa 1) — log: logs/f8d-tema-config.log
+- 2026-11-06 12:32 — ✔ f8d-tema-config concluído
+- 2026-11-06 12:32 — → f8d-tema-verificar (tentativa 1) — log: logs/f8d-tema-verificar.log
+- 2026-11-06 12:32 — ✔ f8d-tema-verificar concluído
+- 2026-11-06 12:32 — Fim da etapa F8d (ok) 124 passos: Xorg, Mesa, GTK3, Xfce 4.20, LightDM e tema ao estilo do macOS
+- 2026-11-06 12:32 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-06 12:32 — → f9-initramfs-e7a4d23e (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-06 12:32 — ✔ f9-initramfs-e7a4d23e concluído
+- 2026-11-06 12:32 — → f9-squashfs-1793968357 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-06 12:35 — ✔ f9-squashfs-1793968357 concluído
+- 2026-11-06 12:35 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-06 12:35 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 2.8G
+- 2026-11-06 12:35 — Início da etapa F10 — Geração da ISO
+- 2026-11-06 12:35 — → f10-iso-1793968554 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-06 12:36 — ✔ f10-iso-1793968554 concluído
+- 2026-11-06 12:36 — Fim da etapa F10 (ok) ISO 2.8G, sha256 befa1b768114ea05…
+- 2026-11-06 12:36 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-06 12:36 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-06 12:36 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-06 12:39 — Teste bios: 13/13 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 12:39 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-06 12:41 — Teste uefi: 13/13 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 12:41 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-06 12:42 — Teste persistência: OK 
+- 2026-11-06 12:42 — Fim da etapa F11 (ok) BIOS 13/13, UEFI 13/13, persistência OK
+- 2026-11-06 12:42 — Início da etapa F12 — Entrega
+- 2026-11-06 12:43 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-06 13:03 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-06 13:03 — → f8e-copia-seguranca (tentativa 1) — log: logs/f8e-copia-seguranca.log
+- 2026-11-06 13:07 — ✔ f8e-copia-seguranca concluído
+- 2026-11-06 13:07 — → f8e-nspr (tentativa 1) — log: logs/f8e-nspr.log
+- 2026-11-06 13:07 — ✔ f8e-nspr concluído
+- 2026-11-06 13:07 — → f8e-nss (tentativa 1) — log: logs/f8e-nss.log
+- 2026-11-06 13:08 — ✔ f8e-nss concluído
+- 2026-11-06 13:08 — → f8e-nettle (tentativa 1) — log: logs/f8e-nettle.log
+- 2026-11-06 13:08 — ✔ f8e-nettle concluído
+- 2026-11-06 13:08 — → f8e-gnutls (tentativa 1) — log: logs/f8e-gnutls.log
+- 2026-11-06 13:10 — ✔ f8e-gnutls concluído
+- 2026-11-06 13:10 — → f8e-xdg-utils (tentativa 1) — log: logs/f8e-xdg-utils.log
+- 2026-11-06 13:10 — ✔ f8e-xdg-utils concluído
+- 2026-11-06 13:10 — → f8e-cups (tentativa 1) — log: logs/f8e-cups.log
+- 2026-11-06 13:10 — ✔ f8e-cups concluído
+- 2026-11-06 13:10 — → f8e-cups-bootscript (tentativa 1) — log: logs/f8e-cups-bootscript.log
+- 2026-11-06 13:10 — ✔ f8e-cups-bootscript concluído
+- 2026-11-06 13:10 — → f8e-cups-sem-arranque (tentativa 1) — log: logs/f8e-cups-sem-arranque.log
+- 2026-11-06 13:10 — ✔ f8e-cups-sem-arranque concluído
+- 2026-11-06 13:10 — → f8e-libsecret (tentativa 1) — log: logs/f8e-libsecret.log
+- 2026-11-06 13:10 — ✔ f8e-libsecret concluído
+- 2026-11-06 13:10 — → f8e-instalar-aplicacoes (tentativa 1) — log: logs/f8e-instalar-aplicacoes.log
+- 2026-11-06 13:10 — ✔ f8e-instalar-aplicacoes concluído
+- 2026-11-06 13:10 — → f8e-verificar-bibliotecas (tentativa 1) — log: logs/f8e-verificar-bibliotecas.log
+- 2026-11-06 13:10 — ✔ f8e-verificar-bibliotecas concluído
+- 2026-11-06 13:10 — → f8e-libarchive (tentativa 1) — log: logs/f8e-libarchive.log
+- 2026-11-06 13:11 — ✔ f8e-libarchive concluído
+- 2026-11-06 13:11 — → f8e-pyproject-metadata (tentativa 1) — log: logs/f8e-pyproject-metadata.log
+- 2026-11-06 13:11 — ✔ f8e-pyproject-metadata concluído
+- 2026-11-06 13:11 — → f8e-meson_python (tentativa 1) — log: logs/f8e-meson_python.log
+- 2026-11-06 13:11 — ✔ f8e-meson_python concluído
+- 2026-11-06 13:11 — → f8e-numpy (tentativa 1) — log: logs/f8e-numpy.log
+- 2026-11-06 13:12 — ✔ f8e-numpy concluído
+- 2026-11-06 13:12 — → f8e-opencv (tentativa 1) — log: logs/f8e-opencv.log
+- 2026-11-06 13:18 — ✔ f8e-opencv concluído
+- 2026-11-06 13:18 — → f8e-pycairo (tentativa 1) — log: logs/f8e-pycairo.log
+- 2026-11-06 13:18 — ✔ f8e-pycairo concluído
+- 2026-11-06 13:18 — → f8e-pygobject3 (tentativa 1) — log: logs/f8e-pygobject3.log
+- 2026-11-06 13:18 — ✔ f8e-pygobject3 concluído
+- 2026-11-06 13:18 — → f8e-libexif (tentativa 1) — log: logs/f8e-libexif.log
+- 2026-11-06 13:18 — ✔ f8e-libexif concluído
+- 2026-11-06 13:18 — → f8e-ristretto (tentativa 1) — log: logs/f8e-ristretto.log
+- 2026-11-06 13:18 — ✔ f8e-ristretto concluído
+- 2026-11-06 13:18 — → f8e-facefinder-downloads (tentativa 1) — log: logs/f8e-facefinder-downloads.log
+- 2026-11-06 13:18 — ✔ f8e-facefinder-downloads concluído
+- 2026-11-06 13:19 — → f8e-facefinder-instalar (tentativa 1) — log: logs/f8e-facefinder-instalar.log
+- 2026-11-06 13:19 — ✔ f8e-facefinder-instalar concluído
+- 2026-11-06 13:19 — → f8e-facefinder-verificar (tentativa 1) — log: logs/f8e-facefinder-verificar.log
+- 2026-11-06 13:19 — ✔ f8e-facefinder-verificar concluído
+- 2026-11-06 13:19 — → f8e-drv-fontes (tentativa 1) — log: logs/f8e-drv-fontes.log
+- 2026-11-06 13:19 — ✔ f8e-drv-fontes concluído
+- 2026-11-06 13:19 — → f8e-kernel-headers (tentativa 1) — log: logs/f8e-kernel-headers.log
+- 2026-11-06 13:49 — ✔ f8e-kernel-headers concluído
+- 2026-11-06 13:49 — → f8e-vulkan-headers (tentativa 1) — log: logs/f8e-vulkan-headers.log
+- 2026-11-06 13:49 — ✔ f8e-vulkan-headers concluído
+- 2026-11-06 13:49 — → f8e-vulkan-loader (tentativa 1) — log: logs/f8e-vulkan-loader.log
+- 2026-11-06 13:49 — ✔ f8e-vulkan-loader concluído
+- 2026-11-06 13:49 — → f8e-glslang (tentativa 1) — log: logs/f8e-glslang.log
+- 2026-11-06 13:50 — ✔ f8e-glslang concluído
+- 2026-11-06 13:50 — → f8e-mesa-vulkan (tentativa 1) — log: logs/f8e-mesa-vulkan.log
+- 2026-11-06 13:54 — ✔ f8e-mesa-vulkan concluído
+- 2026-11-06 13:54 — → f8e-vulkaninfo (tentativa 1) — log: logs/f8e-vulkaninfo.log
+- 2026-11-06 13:54 — ✔ f8e-vulkaninfo concluído
+- 2026-11-06 13:54 — → f8e-nvidia-a-pedido (tentativa 1) — log: logs/f8e-nvidia-a-pedido.log
+- 2026-11-06 13:54 — ✔ f8e-nvidia-a-pedido concluído
+- 2026-11-06 13:54 — → f8e-dbus-python (tentativa 1) — log: logs/f8e-dbus-python.log
+- 2026-11-06 13:54 — ✘ f8e-dbus-python falhou na tentativa 1 (ver logs/f8e-dbus-python.log)
+- 2026-11-06 13:54 — → f8e-dbus-python (tentativa 2) — log: logs/f8e-dbus-python.log
+- 2026-11-06 13:54 — ✘ f8e-dbus-python falhou na tentativa 2 (ver logs/f8e-dbus-python.log)
+- 2026-11-06 13:54 — → f8e-dbus-python (tentativa 3) — log: logs/f8e-dbus-python.log
+- 2026-11-06 13:54 — ✘ f8e-dbus-python falhou na tentativa 3 (ver logs/f8e-dbus-python.log)
+- 2026-11-06 13:54 — Fim da etapa F8e (falhou) falhou em dbus-python (33/88) — ver logs/f8e-dbus-python.log
+- 2026-11-06 13:54 — Orquestrador parado em F8e (f08e-apps.sh) — ver logs/run-all.log
+- 2026-11-06 13:55 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-06 13:55 — → f8e-patchelf (tentativa 1) — log: logs/f8e-patchelf.log
+- 2026-11-06 13:55 — ✔ f8e-patchelf concluído
+- 2026-11-06 13:55 — → f8e-dbus-python (tentativa 1) — log: logs/f8e-dbus-python.log
+- 2026-11-06 13:55 — ✔ f8e-dbus-python concluído
+- 2026-11-06 13:55 — → f8e-openrazer (tentativa 1) — log: logs/f8e-openrazer.log
+- 2026-11-06 13:55 — ✔ f8e-openrazer concluído
+- 2026-11-06 13:55 — → f8e-hidapi (tentativa 1) — log: logs/f8e-hidapi.log
+- 2026-11-06 13:55 — ✔ f8e-hidapi concluído
+- 2026-11-06 13:55 — → f8e-headsetcontrol (tentativa 1) — log: logs/f8e-headsetcontrol.log
+- 2026-11-06 13:56 — ✔ f8e-headsetcontrol concluído
+- 2026-11-06 13:56 — → f8e-libical (tentativa 1) — log: logs/f8e-libical.log
+- 2026-11-06 13:56 — ✔ f8e-libical concluído
+- 2026-11-06 13:56 — → f8e-bluez (tentativa 1) — log: logs/f8e-bluez.log
+- 2026-11-06 13:56 — ✔ f8e-bluez concluído
+- 2026-11-06 13:56 — → f8e-bluez-bootscript (tentativa 1) — log: logs/f8e-bluez-bootscript.log
+- 2026-11-06 13:56 — ✔ f8e-bluez-bootscript concluído
+- 2026-11-06 13:56 — → f8e-blueman (tentativa 1) — log: logs/f8e-blueman.log
+- 2026-11-06 13:56 — ✔ f8e-blueman concluído
+- 2026-11-06 13:56 — → f8e-screenshooter (tentativa 1) — log: logs/f8e-screenshooter.log
+- 2026-11-06 13:57 — ✔ f8e-screenshooter concluído
+- 2026-11-06 13:57 — → f8e-info-hardware (tentativa 1) — log: logs/f8e-info-hardware.log
+- 2026-11-06 13:57 — ✔ f8e-info-hardware concluído
+- 2026-11-06 13:57 — → f8e-drv-verificar (tentativa 1) — log: logs/f8e-drv-verificar.log
+- 2026-11-06 13:57 — ✔ f8e-drv-verificar concluído
+- 2026-11-06 13:57 — → f8e-python3-sqlite3 (tentativa 1) — log: logs/f8e-python3-sqlite3.log
+- 2026-11-06 13:57 — ✔ f8e-python3-sqlite3 concluído
+- 2026-11-06 13:57 — → f8e-setuptools_scm (tentativa 1) — log: logs/f8e-setuptools_scm.log
+- 2026-11-06 13:57 — ✔ f8e-setuptools_scm concluído
+- 2026-11-06 13:57 — → f8e-charset-normalizer (tentativa 1) — log: logs/f8e-charset-normalizer.log
+- 2026-11-06 13:57 — ✔ f8e-charset-normalizer concluído
+- 2026-11-06 13:57 — → f8e-idna (tentativa 1) — log: logs/f8e-idna.log
+- 2026-11-06 13:57 — ✔ f8e-idna concluído
+- 2026-11-06 13:57 — → f8e-editables (tentativa 1) — log: logs/f8e-editables.log
+- 2026-11-06 13:57 — ✔ f8e-editables concluído
+- 2026-11-06 13:57 — → f8e-pathspec (tentativa 1) — log: logs/f8e-pathspec.log
+- 2026-11-06 13:58 — ✔ f8e-pathspec concluído
+- 2026-11-06 13:58 — → f8e-pluggy (tentativa 1) — log: logs/f8e-pluggy.log
+- 2026-11-06 13:58 — ✔ f8e-pluggy concluído
+- 2026-11-06 13:58 — → f8e-trove-classifiers (tentativa 1) — log: logs/f8e-trove-classifiers.log
+- 2026-11-06 13:58 — ✔ f8e-trove-classifiers concluído
+- 2026-11-06 13:58 — → f8e-hatchling (tentativa 1) — log: logs/f8e-hatchling.log
+- 2026-11-06 13:58 — ✔ f8e-hatchling concluído
+- 2026-11-06 13:58 — → f8e-hatch-vcs (tentativa 1) — log: logs/f8e-hatch-vcs.log
+- 2026-11-06 13:58 — ✔ f8e-hatch-vcs concluído
+- 2026-11-06 13:58 — → f8e-urllib3 (tentativa 1) — log: logs/f8e-urllib3.log
+- 2026-11-06 13:58 — ✔ f8e-urllib3 concluído
+- 2026-11-06 13:58 — → f8e-requests (tentativa 1) — log: logs/f8e-requests.log
+- 2026-11-06 13:58 — ✔ f8e-requests concluído
+- 2026-11-06 13:58 — → f8e-iniconfig (tentativa 1) — log: logs/f8e-iniconfig.log
+- 2026-11-06 13:58 — ✔ f8e-iniconfig concluído
+- 2026-11-06 13:58 — → f8e-pytest (tentativa 1) — log: logs/f8e-pytest.log
+- 2026-11-06 13:58 — ✘ f8e-pytest falhou na tentativa 1 (ver logs/f8e-pytest.log)
+- 2026-11-06 13:58 — → f8e-pytest (tentativa 2) — log: logs/f8e-pytest.log
+- 2026-11-06 13:58 — ✘ f8e-pytest falhou na tentativa 2 (ver logs/f8e-pytest.log)
+- 2026-11-06 13:58 — → f8e-pytest (tentativa 3) — log: logs/f8e-pytest.log
+- 2026-11-06 13:58 — ✘ f8e-pytest falhou na tentativa 3 (ver logs/f8e-pytest.log)
+- 2026-11-06 13:58 — Fim da etapa F8e (falhou) falhou em pytest (58/89) — ver logs/f8e-pytest.log
+- 2026-11-06 13:58 — Orquestrador parado em F8e (f08e-apps.sh) — ver logs/run-all.log
+- 2026-11-06 13:59 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-06 13:59 — → f8e-pygments (tentativa 1) — log: logs/f8e-pygments.log
+- 2026-11-06 13:59 — ✔ f8e-pygments concluído
+- 2026-11-06 13:59 — → f8e-pytest (tentativa 1) — log: logs/f8e-pytest.log
+- 2026-11-06 13:59 — ✔ f8e-pytest concluído
+- 2026-11-06 13:59 — → f8e-six (tentativa 1) — log: logs/f8e-six.log
+- 2026-11-06 13:59 — ✔ f8e-six concluído
+- 2026-11-06 13:59 — → f8e-nodejs (tentativa 1) — log: logs/f8e-nodejs.log
+- 2026-11-06 14:27 — ✔ f8e-nodejs concluído
+- 2026-11-06 14:27 — → f8e-gdb (tentativa 1) — log: logs/f8e-gdb.log
+- 2026-11-06 14:29 — ✔ f8e-gdb concluído
+- 2026-11-06 14:29 — → f8e-valgrind (tentativa 1) — log: logs/f8e-valgrind.log
+- 2026-11-06 14:30 — ✔ f8e-valgrind concluído
+- 2026-11-06 14:30 — → f8e-prog-ambiente (tentativa 1) — log: logs/f8e-prog-ambiente.log
+- 2026-11-06 14:30 — ✔ f8e-prog-ambiente concluído
+- 2026-11-06 14:30 — → f8e-prog-verificar (tentativa 1) — log: logs/f8e-prog-verificar.log
+- 2026-11-06 14:30 — ✔ f8e-prog-verificar concluído
+- 2026-11-06 14:30 — → f8e-libseccomp (tentativa 1) — log: logs/f8e-libseccomp.log
+- 2026-11-06 14:30 — ✔ f8e-libseccomp concluído
+- 2026-11-06 14:30 — → f8e-bubblewrap (tentativa 1) — log: logs/f8e-bubblewrap.log
+- 2026-11-06 14:30 — ✔ f8e-bubblewrap concluído
+- 2026-11-06 14:30 — → f8e-xdg-dbus-proxy (tentativa 1) — log: logs/f8e-xdg-dbus-proxy.log
+- 2026-11-06 14:31 — ✘ f8e-xdg-dbus-proxy falhou na tentativa 1 (ver logs/f8e-xdg-dbus-proxy.log)
+- 2026-11-06 14:31 — → f8e-xdg-dbus-proxy (tentativa 2) — log: logs/f8e-xdg-dbus-proxy.log
+- 2026-11-06 14:31 — ✘ f8e-xdg-dbus-proxy falhou na tentativa 2 (ver logs/f8e-xdg-dbus-proxy.log)
+- 2026-11-06 14:31 — → f8e-xdg-dbus-proxy (tentativa 3) — log: logs/f8e-xdg-dbus-proxy.log
+- 2026-11-06 14:31 — ✘ f8e-xdg-dbus-proxy falhou na tentativa 3 (ver logs/f8e-xdg-dbus-proxy.log)
+- 2026-11-06 14:31 — Fim da etapa F8e (falhou) falhou em xdg-dbus-proxy (68/90) — ver logs/f8e-xdg-dbus-proxy.log
+- 2026-11-06 14:31 — Orquestrador parado em F8e (f08e-apps.sh) — ver logs/run-all.log
+- 2026-11-06 14:31 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-06 14:32 — → f8e-xdg-dbus-proxy (tentativa 1) — log: logs/f8e-xdg-dbus-proxy.log
+- 2026-11-06 14:32 — ✔ f8e-xdg-dbus-proxy concluído
+- 2026-11-06 14:32 — → f8e-fuse3 (tentativa 1) — log: logs/f8e-fuse3.log
+- 2026-11-06 14:32 — ✔ f8e-fuse3 concluído
+- 2026-11-06 14:32 — → f8e-libassuan (tentativa 1) — log: logs/f8e-libassuan.log
+- 2026-11-06 14:32 — ✔ f8e-libassuan concluído
+- 2026-11-06 14:32 — → f8e-libksba (tentativa 1) — log: logs/f8e-libksba.log
+- 2026-11-06 14:32 — ✔ f8e-libksba concluído
+- 2026-11-06 14:32 — → f8e-npth (tentativa 1) — log: logs/f8e-npth.log
+- 2026-11-06 14:32 — ✔ f8e-npth concluído
+- 2026-11-06 14:32 — → f8e-pinentry (tentativa 1) — log: logs/f8e-pinentry.log
+- 2026-11-06 14:32 — ✔ f8e-pinentry concluído
+- 2026-11-06 14:32 — → f8e-gnupg (tentativa 1) — log: logs/f8e-gnupg.log
+- 2026-11-06 14:33 — ✔ f8e-gnupg concluído
+- 2026-11-06 14:33 — → f8e-gpgme (tentativa 1) — log: logs/f8e-gpgme.log
+- 2026-11-06 14:34 — ✔ f8e-gpgme concluído
+- 2026-11-06 14:34 — → f8e-libxmlb (tentativa 1) — log: logs/f8e-libxmlb.log
+- 2026-11-06 14:34 — ✔ f8e-libxmlb concluído
+- 2026-11-06 14:34 — → f8e-appstream (tentativa 1) — log: logs/f8e-appstream.log
+- 2026-11-06 14:34 — ✔ f8e-appstream concluído
+- 2026-11-06 14:34 — → f8e-json-glib (tentativa 1) — log: logs/f8e-json-glib.log
+- 2026-11-06 14:34 — ✔ f8e-json-glib concluído
+- 2026-11-06 14:34 — → f8e-pyparsing (tentativa 1) — log: logs/f8e-pyparsing.log
+- 2026-11-06 14:34 — ✔ f8e-pyparsing concluído
+- 2026-11-06 14:34 — → f8e-ostree (tentativa 1) — log: logs/f8e-ostree.log
+- 2026-11-06 14:34 — ✔ f8e-ostree concluído
+- 2026-11-06 14:34 — → f8e-flatpak (tentativa 1) — log: logs/f8e-flatpak.log
+- 2026-11-06 14:34 — ✔ f8e-flatpak concluído
+- 2026-11-06 14:34 — → f8e-gstreamer (tentativa 1) — log: logs/f8e-gstreamer.log
+- 2026-11-06 14:35 — ✔ f8e-gstreamer concluído
+- 2026-11-06 14:35 — → f8e-gst-plugins-base (tentativa 1) — log: logs/f8e-gst-plugins-base.log
+- 2026-11-06 14:35 — ✔ f8e-gst-plugins-base concluído
+- 2026-11-06 14:35 — → f8e-pipewire (tentativa 1) — log: logs/f8e-pipewire.log
+- 2026-11-06 14:36 — ✔ f8e-pipewire concluído
+- 2026-11-06 14:36 — → f8e-gsettings-desktop-schemas (tentativa 1) — log: logs/f8e-gsettings-desktop-schemas.log
+- 2026-11-06 14:36 — ✔ f8e-gsettings-desktop-schemas concluído
+- 2026-11-06 14:36 — → f8e-xdg-desktop-portal (tentativa 1) — log: logs/f8e-xdg-desktop-portal.log
+- 2026-11-06 14:36 — ✔ f8e-xdg-desktop-portal concluído
+- 2026-11-06 14:36 — → f8e-xdg-desktop-portal-gtk (tentativa 1) — log: logs/f8e-xdg-desktop-portal-gtk.log
+- 2026-11-06 14:36 — ✔ f8e-xdg-desktop-portal-gtk concluído
+- 2026-11-06 14:36 — → f8e-flathub (tentativa 1) — log: logs/f8e-flathub.log
+- 2026-11-06 14:36 — ✔ f8e-flathub concluído
+- 2026-11-06 14:36 — → f8e-loja (tentativa 1) — log: logs/f8e-loja.log
+- 2026-11-06 14:36 — ✔ f8e-loja concluído
+- 2026-11-06 14:36 — → f8e-loja-verificar (tentativa 1) — log: logs/f8e-loja-verificar.log
+- 2026-11-06 14:36 — ✔ f8e-loja-verificar concluído
+- 2026-11-06 14:36 — Fim da etapa F8e (ok) 90 passos: aplicações (instalar-aplicacoes), drivers, Python/Node.js, loja Flatpak e face-finder
+- 2026-11-06 14:36 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-06 14:36 — → f9-initramfs-e7a4d23e (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-06 14:36 — ✔ f9-initramfs-e7a4d23e concluído
+- 2026-11-06 14:36 — → f9-squashfs-1793975806 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-06 14:39 — ✔ f9-squashfs-1793975806 concluído
+- 2026-11-06 14:39 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-06 14:39 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 3.0G
+- 2026-11-06 14:39 — Início da etapa F10 — Geração da ISO
+- 2026-11-06 14:39 — → f10-iso-1793975981 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-06 14:40 — ✔ f10-iso-1793975981 concluído
+- 2026-11-06 14:40 — Fim da etapa F10 (ok) ISO 3.1G, sha256 145c88a18a0f503c…
+- 2026-11-06 14:40 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-06 14:40 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-06 14:40 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-06 14:42 — Teste bios: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 14:42 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-06 14:44 — Teste uefi: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 14:44 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-06 14:44 — Teste persistência: OK 
+- 2026-11-06 14:44 — Fim da etapa F11 (ok) BIOS 18/18, UEFI 18/18, persistência OK
+- 2026-11-06 14:44 — Início da etapa F12 — Entrega
+- 2026-11-06 14:46 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-06 17:53 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-06 17:53 — → f9-squashfs-1793987637 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-06 17:57 — ✔ f9-squashfs-1793987637 concluído
+- 2026-11-06 17:57 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-06 17:57 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 3.0G
+- 2026-11-06 17:57 — Início da etapa F10 — Geração da ISO
+- 2026-11-06 17:57 — → f10-iso-1793987845 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-06 17:57 — ✔ f10-iso-1793987845 concluído
+- 2026-11-06 17:57 — Fim da etapa F10 (ok) ISO 3.1G, sha256 c2d640ac44a580e6…
+- 2026-11-06 17:57 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-06 17:57 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-06 17:58 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-06 18:00 — Teste bios: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 18:00 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-06 18:02 — Teste uefi: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-06 18:02 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-06 18:03 — Teste persistência: OK 
+- 2026-11-06 18:03 — Fim da etapa F11 (ok) BIOS 18/18, UEFI 18/18, persistência OK
+- 2026-11-06 18:03 — Início da etapa F12 — Entrega
+- 2026-11-06 18:04 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-06 19:33 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-06 19:33 — → f9-squashfs-1793993626 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-06 19:38 — ✔ f9-squashfs-1793993626 concluído
+- 2026-11-06 19:38 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-06 19:38 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 3.0G
+- 2026-11-06 19:38 — Início da etapa F10 — Geração da ISO
+- 2026-11-06 19:38 — → f10-iso-1793993910 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-06 19:39 — ✔ f10-iso-1793993910 concluído
+- 2026-11-06 19:39 — Fim da etapa F10 (ok) ISO 3.1G, sha256 c878b685544d6e3a…
+- 2026-11-06 19:48 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-06 19:48 — → f9-squashfs-1793994510 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-06 19:51 — ✔ f9-squashfs-1793994510 concluído
+- 2026-11-06 19:51 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-06 19:51 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 3.0G
+- 2026-11-06 19:52 — Início da etapa F10 — Geração da ISO
+- 2026-11-06 19:52 — → f10-iso-1793994732 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-06 19:52 — ✔ f10-iso-1793994732 concluído
+- 2026-11-06 19:52 — Fim da etapa F10 (ok) ISO 3.1G, sha256 60fa5024b75f61fc…
+- 2026-11-06 19:58 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-06 19:58 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-06 19:58 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-11 13:45 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-11 13:45 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-11 13:45 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-11 13:47 — Teste bios: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-11 13:47 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-11 13:49 — Teste uefi: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-11 13:49 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-11 13:50 — Teste persistência: OK 
+- 2026-11-11 13:50 — Fim da etapa F11 (ok) BIOS 18/18, UEFI 18/18, persistência OK
+- 2026-11-11 13:50 — Início da etapa F12 — Entrega
+- 2026-11-11 13:52 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-11 18:41 — F9-F12 marcadas como pendentes: consola no ecrã (tty0 por último), entrada GRUB de compatibilidade (nomodeset), ianinja-dm, espera de 60 s no initramfs
+- 2026-11-11 18:41 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-11 18:41 — → f9-initramfs-42da7e71 (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-11 18:41 — ✔ f9-initramfs-42da7e71 concluído
+- 2026-11-11 18:41 — → f9-squashfs-1794422486 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-11 18:44 — ✔ f9-squashfs-1794422486 concluído
+- 2026-11-11 18:44 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-11 18:44 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 3.0G
+- 2026-11-11 18:44 — Início da etapa F10 — Geração da ISO
+- 2026-11-11 18:44 — → f10-iso-1794422683 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-11 18:45 — ✔ f10-iso-1794422683 concluído
+- 2026-11-11 18:45 — Fim da etapa F10 (ok) ISO 3.1G, sha256 01ebb17e68717634…
+- 2026-11-11 18:45 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-11 18:45 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-11 18:45 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-11 18:48 — Teste bios: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-11 18:48 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-11 18:50 — Teste uefi: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-11 18:50 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-11 18:51 — Teste persistência: OK 
+- 2026-11-11 18:51 — Fim da etapa F11 (ok) BIOS 18/18, UEFI 18/18, persistência OK
+- 2026-11-11 18:51 — Início da etapa F12 — Entrega
+- 2026-11-11 18:53 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-11 19:59 — F9-F12 pendentes: /init procura o ISO9660 no disco inteiro (pen USB), ianinja-dm com níveis de recurso, testes F11 como pen USB/disco
+- 2026-11-11 19:59 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-11 19:59 — → f9-initramfs-2206db99 (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-11 19:59 — ✔ f9-initramfs-2206db99 concluído
+- 2026-11-11 19:59 — → f9-squashfs-1794427152 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-11 20:02 — ✔ f9-squashfs-1794427152 concluído
+- 2026-11-11 20:02 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-11 20:02 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 3.0G
+- 2026-11-11 20:02 — Início da etapa F10 — Geração da ISO
+- 2026-11-11 20:02 — → f10-iso-1794427330 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-11 20:02 — ✔ f10-iso-1794427330 concluído
+- 2026-11-11 20:02 — Fim da etapa F10 (ok) ISO 3.1G, sha256 27ea590fa0634255…
+- 2026-11-11 20:02 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-11 20:02 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-11 20:02 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-11 20:04 — Teste bios: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-11 20:04 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-11 20:06 — Teste uefi: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-11 20:06 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-11 20:07 — Teste persistência: OK 
+- 2026-11-11 20:07 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-12 07:52 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-12 07:52 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-12 07:52 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-12 07:54 — Teste bios: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 07:54 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-12 07:56 — Teste uefi: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 07:56 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-12 07:57 — Teste persistência: OK 
+- 2026-11-12 07:57 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-12 08:08 — Teste pen-bios: 2/4 aprovados, 1 falhas Login root (timeout);
+- 2026-11-12 08:08 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-12 08:20 — Teste pen-uefi: 1/4 aprovados, 2 falhas initramfs encontra o ISO9660 no disco inteiro e monta a raiz;Login root (timeout);
+- 2026-11-12 08:20 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-12 08:31 — Teste disco-bios: 1/4 aprovados, 2 falhas initramfs encontra o ISO9660 no disco inteiro e monta a raiz;Login root (timeout);
+- 2026-11-12 08:31 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-12 08:49 — Teste disco-uefi: 1/4 aprovados, 2 falhas initramfs encontra o ISO9660 no disco inteiro e monta a raiz;Login root (timeout);
+- 2026-11-12 08:49 — Fim da etapa F11 (falhou) BIOS 18/18, UEFI 18/18, persistência OK, pen-bios 2/4, pen-uefi 1/4, disco-bios 1/4, disco-uefi 1/4 — critérios falharam em: pen-bios pen-uefi disco-bios disco-uefi (ver logs/11-resultado-*.txt)
+- 2026-11-12 08:49 — Orquestrador parado em F11 (f11-testes.sh) — ver logs/run-all.log
+- 2026-11-12 09:02 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-12 09:02 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-12 09:02 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-12 09:04 — Teste bios: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 09:04 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-12 09:06 — Teste uefi: 18/18 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 09:06 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-12 09:07 — Teste persistência: OK 
+- 2026-11-12 09:07 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-12 09:07 — Teste pen-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-12 09:07 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-12 09:08 — Teste pen-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-12 09:08 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-12 09:09 — Teste disco-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-12 09:09 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-12 09:09 — Teste disco-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-12 09:09 — Fim da etapa F11 (ok) BIOS 18/18, UEFI 18/18, persistência OK, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4
+- 2026-11-12 09:09 — Início da etapa F12 — Entrega
+- 2026-11-12 09:10 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-12 17:30 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-12 17:30 — Orquestrador parado em F8e (f08e-apps.sh) — ver logs/run-all.log
+- 2026-11-12 17:30 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-12 17:30 — Orquestrador parado em F8e (f08e-apps.sh) — ver logs/run-all.log
+- 2026-11-12 19:20 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-12 19:20 — → f8e-loja (tentativa 1) — log: logs/f8e-loja.log
+- 2026-11-12 19:20 — ✔ f8e-loja concluído
+- 2026-11-12 19:20 — → f8e-loja-verificar (tentativa 1) — log: logs/f8e-loja-verificar.log
+- 2026-11-12 19:20 — ✔ f8e-loja-verificar concluído
+- 2026-11-12 19:20 — → f8e-vte-gnutls (tentativa 1) — log: logs/f8e-vte-gnutls.log
+- 2026-11-12 19:21 — ✔ f8e-vte-gnutls concluído
+- 2026-11-12 19:21 — → f8e-icones-sessao (tentativa 1) — log: logs/f8e-icones-sessao.log
+- 2026-11-12 19:21 — ✔ f8e-icones-sessao concluído
+- 2026-11-12 19:21 — → f8e-rede-fontes (tentativa 1) — log: logs/f8e-rede-fontes.log
+- 2026-11-12 19:21 — ✔ f8e-rede-fontes concluído
+- 2026-11-12 19:21 — → f8e-wpa-dbus (tentativa 1) — log: logs/f8e-wpa-dbus.log
+- 2026-11-12 19:21 — ✔ f8e-wpa-dbus concluído
+- 2026-11-12 19:21 — → f8e-libndp (tentativa 1) — log: logs/f8e-libndp.log
+- 2026-11-12 19:21 — ✔ f8e-libndp concluído
+- 2026-11-12 19:21 — → f8e-slang (tentativa 1) — log: logs/f8e-slang.log
+- 2026-11-12 19:22 — ✔ f8e-slang concluído
+- 2026-11-12 19:22 — → f8e-newt (tentativa 1) — log: logs/f8e-newt.log
+- 2026-11-12 19:22 — ✔ f8e-newt concluído
+- 2026-11-12 19:22 — → f8e-networkmanager (tentativa 1) — log: logs/f8e-networkmanager.log
+- 2026-11-12 19:22 — ✔ f8e-networkmanager concluído
+- 2026-11-12 19:22 — → f8e-nm-bootscript (tentativa 1) — log: logs/f8e-nm-bootscript.log
+- 2026-11-12 19:22 — ✔ f8e-nm-bootscript concluído
+- 2026-11-12 19:22 — → f8e-gcr (tentativa 1) — log: logs/f8e-gcr.log
+- 2026-11-12 19:23 — ✔ f8e-gcr concluído
+- 2026-11-12 19:23 — → f8e-libnma (tentativa 1) — log: logs/f8e-libnma.log
+- 2026-11-12 19:23 — ✔ f8e-libnma concluído
+- 2026-11-12 19:23 — → f8e-nm-applet (tentativa 1) — log: logs/f8e-nm-applet.log
+- 2026-11-12 19:23 — ✔ f8e-nm-applet concluído
+- 2026-11-12 19:23 — → f8e-rede-configurar (tentativa 1) — log: logs/f8e-rede-configurar.log
+- 2026-11-12 19:23 — ✔ f8e-rede-configurar concluído
+- 2026-11-12 19:23 — → f8e-rede-verificar (tentativa 1) — log: logs/f8e-rede-verificar.log
+- 2026-11-12 19:23 — ✔ f8e-rede-verificar concluído
+- 2026-11-12 19:23 — → f8e-assistente-instalar (tentativa 1) — log: logs/f8e-assistente-instalar.log
+- 2026-11-12 19:23 — ✔ f8e-assistente-instalar concluído
+- 2026-11-12 19:23 — → f8e-assistente-verificar (tentativa 1) — log: logs/f8e-assistente-verificar.log
+- 2026-11-12 19:23 — ✔ f8e-assistente-verificar concluído
+- 2026-11-12 19:23 — → f8e-otim-bluetooth (tentativa 1) — log: logs/f8e-otim-bluetooth.log
+- 2026-11-12 19:23 — ✔ f8e-otim-bluetooth concluído
+- 2026-11-12 19:23 — → f8e-otim-xfce (tentativa 1) — log: logs/f8e-otim-xfce.log
+- 2026-11-12 19:23 — ✔ f8e-otim-xfce concluído
+- 2026-11-12 19:23 — → f8e-otim-strip (tentativa 1) — log: logs/f8e-otim-strip.log
+- 2026-11-12 19:24 — ✔ f8e-otim-strip concluído
+- 2026-11-12 19:24 — → f8e-otim-verificar (tentativa 1) — log: logs/f8e-otim-verificar.log
+- 2026-11-12 19:24 — ✔ f8e-otim-verificar concluído
+- 2026-11-12 19:24 — Fim da etapa F8e (ok) 110 passos: aplicações (instalar-aplicacoes), drivers, Python/Node.js, loja Flatpak e face-finder
+- 2026-11-12 19:24 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-12 19:24 — → f9-initramfs-2206db99 (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-12 19:24 — ✔ f9-initramfs-2206db99 concluído
+- 2026-11-12 19:24 — → f9-squashfs-1794511475 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-12 19:27 — ✔ f9-squashfs-1794511475 concluído
+- 2026-11-12 19:27 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-12 19:27 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 2.2G
+- 2026-11-12 19:27 — Início da etapa F10 — Geração da ISO
+- 2026-11-12 19:27 — → f10-iso-1794511637 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-12 19:27 — ✔ f10-iso-1794511637 concluído
+- 2026-11-12 19:27 — Fim da etapa F10 (ok) ISO 2.2G, sha256 049f828662e6dea5…
+- 2026-11-12 19:27 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-12 19:27 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-12 19:27 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-12 19:29 — Teste bios: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 19:29 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-12 19:31 — Teste uefi: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 19:31 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-12 19:32 — Teste persistência: OK 
+- 2026-11-12 19:32 — Teste QEMU assistente-bios (assistente de 1.º arranque ativo) — log: logs/11-teste-assistente-bios.log
+- 2026-11-12 19:33 — Teste assistente-bios: 3/4 aprovados, 1 falhas, 0 lentos Conta de ensaio autentica com a senha (su a partir do ninja) e recusa uma senha errada (timeout);
+- 2026-11-12 19:33 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-12 19:34 — Teste pen-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:34 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-12 19:34 — Teste pen-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:34 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-12 19:35 — Teste disco-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:35 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-12 19:35 — Teste disco-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:36 — Fim da etapa F11 (falhou) BIOS 20/20, UEFI 20/20, persistência OK, assistente-bios 3/4, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4 — critérios falharam em: assistente-bios (ver logs/11-resultado-*.txt)
+- 2026-11-12 19:36 — Orquestrador parado em F11 (f11-testes.sh) — ver logs/run-all.log
+- 2026-11-12 19:37 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-12 19:37 — → f8e-assistente-instalar (tentativa 1) — log: logs/f8e-assistente-instalar.log
+- 2026-11-12 19:37 — ✔ f8e-assistente-instalar concluído
+- 2026-11-12 19:37 — → f8e-assistente-verificar (tentativa 1) — log: logs/f8e-assistente-verificar.log
+- 2026-11-12 19:37 — ✔ f8e-assistente-verificar concluído
+- 2026-11-12 19:37 — Fim da etapa F8e (ok) 110 passos: aplicações (instalar-aplicacoes), drivers, Python/Node.js, loja Flatpak e face-finder
+- 2026-11-12 19:37 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-12 19:37 — → f9-initramfs-2206db99 (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-12 19:37 — ✔ f9-initramfs-2206db99 concluído
+- 2026-11-12 19:37 — → f9-squashfs-1794512272 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-12 19:40 — ✔ f9-squashfs-1794512272 concluído
+- 2026-11-12 19:40 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-12 19:40 — Fim da etapa F9 (ok) initrd 21M, rootfs.squashfs 2.2G
+- 2026-11-12 19:40 — Início da etapa F10 — Geração da ISO
+- 2026-11-12 19:40 — → f10-iso-1794512421 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-12 19:40 — ✔ f10-iso-1794512421 concluído
+- 2026-11-12 19:40 — Fim da etapa F10 (ok) ISO 2.2G, sha256 8539b757f9590729…
+- 2026-11-12 19:40 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-12 19:40 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-12 19:40 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-12 19:42 — Teste bios: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 19:42 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-12 19:44 — Teste uefi: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 19:44 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-12 19:45 — Teste persistência: OK 
+- 2026-11-12 19:45 — Teste QEMU assistente-bios (assistente de 1.º arranque ativo) — log: logs/11-teste-assistente-bios.log
+- 2026-11-12 19:46 — Teste assistente-bios: 4/4 aprovados, 0 falhas, 0 lentos 
+- 2026-11-12 19:46 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-12 19:46 — Teste pen-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:46 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-12 19:47 — Teste pen-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:47 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-12 19:47 — Teste disco-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:47 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-12 19:48 — Teste disco-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-12 19:48 — Fim da etapa F11 (ok) BIOS 20/20, UEFI 20/20, persistência OK, assistente-bios 4/4, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4
+- 2026-11-12 19:48 — Início da etapa F12 — Entrega
+- 2026-11-12 19:49 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-13 14:06 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-13 14:06 — → f8e-loja (tentativa 1) — log: logs/f8e-loja.log
+- 2026-11-13 14:06 — ✔ f8e-loja concluído
+- 2026-11-13 14:06 — → f8e-loja-verificar (tentativa 1) — log: logs/f8e-loja-verificar.log
+- 2026-11-13 14:06 — ✔ f8e-loja-verificar concluído
+- 2026-11-13 14:06 — → f8e-assistente-instalar (tentativa 1) — log: logs/f8e-assistente-instalar.log
+- 2026-11-13 14:06 — ✔ f8e-assistente-instalar concluído
+- 2026-11-13 14:06 — → f8e-assistente-verificar (tentativa 1) — log: logs/f8e-assistente-verificar.log
+- 2026-11-13 14:06 — ✔ f8e-assistente-verificar concluído
+- 2026-11-13 14:06 — → f8e-persistencia-instalar (tentativa 1) — log: logs/f8e-persistencia-instalar.log
+- 2026-11-13 14:06 — ✘ f8e-persistencia-instalar falhou na tentativa 1 (ver logs/f8e-persistencia-instalar.log)
+- 2026-11-13 14:06 — → f8e-persistencia-instalar (tentativa 2) — log: logs/f8e-persistencia-instalar.log
+- 2026-11-13 14:06 — ✘ f8e-persistencia-instalar falhou na tentativa 2 (ver logs/f8e-persistencia-instalar.log)
+- 2026-11-13 14:06 — → f8e-persistencia-instalar (tentativa 3) — log: logs/f8e-persistencia-instalar.log
+- 2026-11-13 14:06 — ✘ f8e-persistencia-instalar falhou na tentativa 3 (ver logs/f8e-persistencia-instalar.log)
+- 2026-11-13 14:06 — Fim da etapa F8e (falhou) falhou em persistencia-instalar (111/112) — ver logs/f8e-persistencia-instalar.log
+- 2026-11-13 14:06 — Orquestrador parado em F8e (f08e-apps.sh) — ver logs/run-all.log
+- 2026-11-13 14:07 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-13 14:08 — → f8e-persistencia-instalar (tentativa 1) — log: logs/f8e-persistencia-instalar.log
+- 2026-11-13 14:08 — ✔ f8e-persistencia-instalar concluído
+- 2026-11-13 14:08 — → f8e-persistencia-verificar (tentativa 1) — log: logs/f8e-persistencia-verificar.log
+- 2026-11-13 14:08 — ✔ f8e-persistencia-verificar concluído
+- 2026-11-13 14:08 — Fim da etapa F8e (ok) 112 passos: aplicações (instalar-aplicacoes), drivers, Python/Node.js, loja Flatpak e face-finder
+- 2026-11-13 14:08 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-13 14:08 — → f9-initramfs-be7c5679 (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-13 14:08 — ✔ f9-initramfs-be7c5679 concluído
+- 2026-11-13 14:08 — → f9-squashfs-1794578907 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-13 14:10 — ✔ f9-squashfs-1794578907 concluído
+- 2026-11-13 14:10 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-13 14:10 — Fim da etapa F9 (ok) initrd 24M, rootfs.squashfs 2.2G
+- 2026-11-13 14:10 — Início da etapa F10 — Geração da ISO
+- 2026-11-13 14:10 — → f10-iso-1794579059 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-13 14:11 — ✔ f10-iso-1794579059 concluído
+- 2026-11-13 14:11 — Fim da etapa F10 (ok) ISO 2.2G, sha256 bddcfb3f0f2a2eda…
+- 2026-11-13 14:11 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-13 14:11 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-13 14:11 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-13 14:12 — Teste bios: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:12 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-13 14:13 — Teste uefi: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:13 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-13 14:14 — Teste persistência: OK 
+- 2026-11-13 14:14 — Teste QEMU persistencia-ficheiro (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-ficheiro.log
+- 2026-11-13 14:15 — Teste persistencia-ficheiro: 5/5 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:15 — Teste QEMU persistencia-pen (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-pen.log
+- 2026-11-13 14:17 — Teste persistencia-pen: 6/8 aprovados, 2 falhas, 0 lentos arranque uefi seguinte: o initramfs usa o destino (partição nova na pen, UEFI) e 'estado' diz ativo;arranque uefi seguinte: os dados estão lá (/home/ninja/teste-persistencia.txt e a ligação Wi-Fi teste-ianinja);
+- 2026-11-13 14:17 — Teste QEMU assistente-bios (assistente de 1.º arranque ativo) — log: logs/11-teste-assistente-bios.log
+- 2026-11-13 14:18 — Teste assistente-bios: 4/4 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:18 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-13 14:18 — Teste pen-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:18 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-13 14:19 — Teste pen-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:19 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-13 14:19 — Teste disco-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:19 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-13 14:20 — Teste disco-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:20 — Fim da etapa F11 (falhou) BIOS 20/20, UEFI 20/20, persistência OK, persistencia-ficheiro 5/5, persistencia-pen 6/8, assistente-bios 4/4, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4 — critérios falharam em: persistencia-pen (ver logs/11-resultado-*.txt)
+- 2026-11-13 14:20 — Orquestrador parado em F11 (f11-testes.sh) — ver logs/run-all.log
+- 2026-11-13 14:21 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-13 14:21 — → f9-initramfs-377a63cd (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-13 14:21 — ✔ f9-initramfs-377a63cd concluído
+- 2026-11-13 14:22 — → f9-squashfs-1794579720 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-13 14:24 — ✔ f9-squashfs-1794579720 concluído
+- 2026-11-13 14:24 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-13 14:24 — Fim da etapa F9 (ok) initrd 24M, rootfs.squashfs 2.2G
+- 2026-11-13 14:24 — Início da etapa F10 — Geração da ISO
+- 2026-11-13 14:24 — → f10-iso-1794579880 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-13 14:25 — ✔ f10-iso-1794579880 concluído
+- 2026-11-13 14:25 — Fim da etapa F10 (ok) ISO 2.2G, sha256 07a6771ec836bcf2…
+- 2026-11-13 14:25 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-13 14:25 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-13 14:25 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-13 14:26 — Teste bios: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:26 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-13 14:27 — Teste uefi: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:27 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-13 14:28 — Teste persistência: OK 
+- 2026-11-13 14:28 — Teste QEMU persistencia-ficheiro (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-ficheiro.log
+- 2026-11-13 14:29 — Teste persistencia-ficheiro: 5/5 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:29 — Teste QEMU persistencia-pen (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-pen.log
+- 2026-11-13 14:31 — Teste persistencia-pen: 8/8 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:31 — Teste QEMU assistente-bios (assistente de 1.º arranque ativo) — log: logs/11-teste-assistente-bios.log
+- 2026-11-13 14:32 — Teste assistente-bios: 4/4 aprovados, 0 falhas, 0 lentos 
+- 2026-11-13 14:32 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-13 14:32 — Teste pen-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:32 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-13 14:33 — Teste pen-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:33 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-13 14:33 — Teste disco-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:33 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-13 14:34 — Teste disco-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-13 14:34 — Fim da etapa F11 (ok) BIOS 20/20, UEFI 20/20, persistência OK, persistencia-ficheiro 5/5, persistencia-pen 8/8, assistente-bios 4/4, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4
+- 2026-11-13 14:34 — Início da etapa F12 — Entrega
+- 2026-11-13 14:35 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-19 17:53 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-19 17:53 — → f8e-lua (tentativa 1) — log: logs/f8e-lua.log
+- 2026-11-19 17:53 — ✔ f8e-lua concluído
+- 2026-11-19 17:53 — → f8e-wireplumber (tentativa 1) — log: logs/f8e-wireplumber.log
+- 2026-11-19 17:54 — ✔ f8e-wireplumber concluído
+- 2026-11-19 17:54 — → f8e-sbc (tentativa 1) — log: logs/f8e-sbc.log
+- 2026-11-19 17:54 — ✔ f8e-sbc concluído
+- 2026-11-19 17:54 — → f8e-pipewire-bluetooth (tentativa 1) — log: logs/f8e-pipewire-bluetooth.log
+- 2026-11-19 17:55 — ✔ f8e-pipewire-bluetooth concluído
+- 2026-11-19 17:55 — → f8e-v4l-utils (tentativa 1) — log: logs/f8e-v4l-utils.log
+- 2026-11-19 17:55 — ✔ f8e-v4l-utils concluído
+- 2026-11-19 17:55 — → f8e-gnome-keyring (tentativa 1) — log: logs/f8e-gnome-keyring.log
+- 2026-11-19 17:55 — ✔ f8e-gnome-keyring concluído
+- 2026-11-19 17:55 — → f8e-correcoes-12 (tentativa 1) — log: logs/f8e-correcoes-12.log
+- 2026-11-19 17:55 — ✔ f8e-correcoes-12 concluído
+- 2026-11-19 17:55 — → f8e-correcoes-12-verificar (tentativa 1) — log: logs/f8e-correcoes-12-verificar.log
+- 2026-11-19 17:56 — ✔ f8e-correcoes-12-verificar concluído
+- 2026-11-19 17:56 — Fim da etapa F8e (ok) 120 passos: aplicações (instalar-aplicacoes), drivers, Python/Node.js, loja Flatpak e face-finder
+- 2026-11-19 17:56 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-19 17:56 — → f9-initramfs-377a63cd (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-19 17:56 — ✔ f9-initramfs-377a63cd concluído
+- 2026-11-19 17:56 — → f9-squashfs-1795110970 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-19 17:59 — ✔ f9-squashfs-1795110970 concluído
+- 2026-11-19 17:59 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-19 17:59 — Fim da etapa F9 (ok) initrd 24M, rootfs.squashfs 2.2G
+- 2026-11-19 17:59 — Início da etapa F10 — Geração da ISO
+- 2026-11-19 17:59 — → f10-iso-1795111187 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-19 18:00 — ✔ f10-iso-1795111187 concluído
+- 2026-11-19 18:00 — Fim da etapa F10 (ok) ISO 2.2G, sha256 0d5a9efa8c62c9bc…
+- 2026-11-19 18:00 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-19 18:00 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-19 18:00 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-19 18:02 — Teste bios: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 18:02 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-19 18:04 — Teste uefi: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 18:04 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-19 18:05 — Teste persistência: OK 
+- 2026-11-19 18:05 — Teste QEMU persistencia-ficheiro (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-ficheiro.log
+- 2026-11-19 18:06 — Teste persistencia-ficheiro: 5/5 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 18:06 — Teste QEMU persistencia-pen (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-pen.log
+- 2026-11-19 18:08 — Teste persistencia-pen: 8/8 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 18:08 — Teste QEMU assistente-bios (assistente de 1.º arranque ativo) — log: logs/11-teste-assistente-bios.log
+- 2026-11-19 18:09 — Teste assistente-bios: 4/4 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 18:09 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-19 18:10 — Teste pen-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-19 18:10 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-19 18:10 — Teste pen-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-19 18:10 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-19 18:11 — Teste disco-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-19 18:11 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-19 18:11 — Teste disco-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-19 18:11 — Fim da etapa F11 (ok) BIOS 20/20, UEFI 20/20, persistência OK, persistencia-ficheiro 5/5, persistencia-pen 8/8, assistente-bios 4/4, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4
+- 2026-11-19 18:11 — Início da etapa F12 — Entrega
+- 2026-11-19 18:12 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso
+- 2026-11-19 18:56 — Início da etapa F8e — Aplicações, drivers, programação, loja e face-finder
+- 2026-11-19 18:57 — → f8e-correcoes-12 (tentativa 1) — log: logs/f8e-correcoes-12.log
+- 2026-11-19 18:57 — ✔ f8e-correcoes-12 concluído
+- 2026-11-19 18:57 — → f8e-correcoes-12-verificar (tentativa 1) — log: logs/f8e-correcoes-12-verificar.log
+- 2026-11-19 18:57 — ✔ f8e-correcoes-12-verificar concluído
+- 2026-11-19 18:57 — Fim da etapa F8e (ok) 120 passos: aplicações (instalar-aplicacoes), drivers, Python/Node.js, loja Flatpak e face-finder
+- 2026-11-19 18:57 — Início da etapa F9 — Sistema live (initramfs + SquashFS)
+- 2026-11-19 18:57 — → f9-initramfs-377a63cd (tentativa 1) — log: logs/f9-initramfs.log
+- 2026-11-19 18:57 — ✔ f9-initramfs-377a63cd concluído
+- 2026-11-19 18:57 — → f9-squashfs-1795114635 (tentativa 1) — log: logs/f9-squashfs.log
+- 2026-11-19 18:59 — ✔ f9-squashfs-1795114635 concluído
+- 2026-11-19 18:59 — F9: rootfs.squashfs com a interface gráfica (LightDM, Xorg, Xfce, WhiteSur) e sem machine-id
+- 2026-11-19 18:59 — Fim da etapa F9 (ok) initrd 24M, rootfs.squashfs 2.2G
+- 2026-11-19 18:59 — Início da etapa F10 — Geração da ISO
+- 2026-11-19 18:59 — → f10-iso-1795114791 (tentativa 1) — log: logs/f10-iso.log
+- 2026-11-19 19:00 — ✔ f10-iso-1795114791 concluído
+- 2026-11-19 19:00 — Fim da etapa F10 (ok) ISO 2.2G, sha256 4b4ce4975c4a712c…
+- 2026-11-19 19:00 — Início da etapa F11 — Testes automáticos (QEMU BIOS/UEFI)
+- 2026-11-19 19:00 — F11: /dev/kvm disponível — QEMU com aceleração KVM
+- 2026-11-19 19:00 — Teste QEMU bios — log: logs/11-teste-bios.log
+- 2026-11-19 19:01 — Teste bios: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 19:01 — Teste QEMU uefi — log: logs/11-teste-uefi.log
+- 2026-11-19 19:03 — Teste uefi: 20/20 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 19:03 — Teste QEMU persistência (BIOS + disco IANINJA-DADOS) — log: logs/11-teste-persistencia.log
+- 2026-11-19 19:03 — Teste persistência: OK 
+- 2026-11-19 19:03 — Teste QEMU persistencia-ficheiro (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-ficheiro.log
+- 2026-11-19 19:05 — Teste persistencia-ficheiro: 5/5 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 19:05 — Teste QEMU persistencia-pen (persistência pelo assistente, vários arranques) — log: logs/11-teste-persistencia-pen.log
+- 2026-11-19 19:06 — Teste persistencia-pen: 8/8 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 19:06 — Teste QEMU assistente-bios (assistente de 1.º arranque ativo) — log: logs/11-teste-assistente-bios.log
+- 2026-11-19 19:07 — Teste assistente-bios: 4/4 aprovados, 0 falhas, 0 lentos 
+- 2026-11-19 19:07 — Teste QEMU pen-bios (ISO como disco) — log: logs/11-teste-pen-bios.log
+- 2026-11-19 19:08 — Teste pen-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-19 19:08 — Teste QEMU pen-uefi (ISO como disco) — log: logs/11-teste-pen-uefi.log
+- 2026-11-19 19:08 — Teste pen-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-19 19:08 — Teste QEMU disco-bios (ISO como disco) — log: logs/11-teste-disco-bios.log
+- 2026-11-19 19:09 — Teste disco-bios: 4/4 aprovados, 0 falhas 
+- 2026-11-19 19:09 — Teste QEMU disco-uefi (ISO como disco) — log: logs/11-teste-disco-uefi.log
+- 2026-11-19 19:09 — Teste disco-uefi: 4/4 aprovados, 0 falhas 
+- 2026-11-19 19:09 — Fim da etapa F11 (ok) BIOS 20/20, UEFI 20/20, persistência OK, persistencia-ficheiro 5/5, persistencia-pen 8/8, assistente-bios 4/4, pen-bios 4/4, pen-uefi 4/4, disco-bios 4/4, disco-uefi 4/4
+- 2026-11-19 19:09 — Início da etapa F12 — Entrega
+- 2026-11-19 19:10 — Fim da etapa F12 (ok) ISO e documentação copiadas para C:\Users\User\Documents\ianinjapelagestao_iso

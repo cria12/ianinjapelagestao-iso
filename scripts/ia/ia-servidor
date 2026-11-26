@@ -1,0 +1,29 @@
+#!/bin/bash
+# ia-servidor — controla o servidor de IA local (llama-server, API compatível com a OpenAI)
+# Uso: ia-servidor {start|stop|restart|status}
+# Configuração: /etc/sysconfig/ia-servidor. Não arranca sozinho no boot; para isso (como root):
+#   ln -s ../init.d/ia-servidor /etc/rc.d/rc3.d/S90ia-servidor
+INIT=/etc/rc.d/init.d/ia-servidor
+case "${1:-}" in
+  start|stop|restart|status) ;;
+  *) echo "Uso: ia-servidor {start|stop|restart|status}"
+     echo "API: http://127.0.0.1:8080/v1/chat/completions (compatível com a OpenAI)"
+     exit 1 ;;
+esac
+if [ "$(id -u)" -ne 0 ]; then
+  if [ "$1" = status ]; then
+    pidof llama-server > /dev/null && { echo "llama-server está a correr (pid $(pidof llama-server))"; exit 0; }
+    echo "llama-server não está a correr"; exit 3
+  fi
+  exec sudo "$INIT" "$1"
+fi
+"$INIT" "$1"
+rc=$?
+if [ "$1" = start ] && [ $rc -eq 0 ]; then
+  . /etc/sysconfig/ia-servidor 2> /dev/null
+  echo "Servidor em http://${ENDERECO:-127.0.0.1}:${PORTA:-8080} — exemplo:"
+  echo "  curl -s http://${ENDERECO:-127.0.0.1}:${PORTA:-8080}/v1/chat/completions -H 'Content-Type: application/json' \\"
+  echo "       -d '{\"messages\":[{\"role\":\"user\",\"content\":\"Olá!\"}]}'"
+  echo "(o modelo demora alguns segundos a carregar; registo em /var/log/ia-servidor.log)"
+fi
+exit $rc

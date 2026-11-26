@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ianinjapelagestao: xfce4-terminal 1.1.5 por omissão para todos os utilizadores.
+  Desde a versão 1.1 o terminal guarda as preferências no canal xfconf "xfce4-terminal"
+  (/etc/xdg/xfce4/terminal/terminalrc só é importado se este canal não existir; tem os mesmos valores).
+  Esquema claro "ianinja": fundo branco, texto quase preto, paleta de 16 cores suaves; JetBrains Mono.
+-->
+
+<channel name="xfce4-terminal" version="1.0">
+  <property name="font-use-system" type="bool" value="false"/>
+  <property name="font-name" type="string" value="JetBrains Mono 11"/>
+  <property name="color-use-theme" type="bool" value="false"/>
+  <property name="color-foreground" type="string" value="#1d1d1f"/>
+  <property name="color-background" type="string" value="#ffffff"/>
+  <property name="color-cursor" type="string" value="#1d1d1f"/>
+  <property name="color-cursor-use-default" type="bool" value="false"/>
+  <property name="color-bold" type="string" value="#000000"/>
+  <property name="color-bold-use-default" type="bool" value="true"/>
+  <property name="color-bold-is-bright" type="bool" value="false"/>
+  <property name="color-selection-use-default" type="bool" value="false"/>
+  <property name="color-selection" type="string" value="#1d1d1f"/>
+  <property name="color-selection-background" type="string" value="#b3d7ff"/>
+  <property name="color-palette" type="string" value="#3a3a3c;#d70015;#248a3d;#b25000;#0040dd;#ad44ab;#0071a4;#c7c7cc;#6e6e73;#ff3b30;#34c759;#ff9500;#007aff;#af52de;#32ade6;#f2f2f7"/>
+  <property name="tab-activity-color" type="string" value="#ff9500"/>
+  <property name="misc-default-geometry" type="string" value="100x30"/>
+  <property name="misc-menubar-default" type="bool" value="false"/>
+  <property name="misc-toolbar-default" type="bool" value="false"/>
+  <property name="misc-borders-default" type="bool" value="true"/>
+  <property name="misc-slim-tabs" type="bool" value="true"/>
+  <property name="misc-cursor-blinks" type="bool" value="true"/>
+  <property name="misc-cursor-shape" type="string" value="TERMINAL_CURSOR_SHAPE_IBEAM"/>
+  <property name="misc-confirm-close" type="bool" value="true"/>
+  <property name="misc-show-unsafe-paste-dialog" type="bool" value="true"/>
+  <property name="scrolling-bar" type="string" value="TERMINAL_SCROLLBAR_RIGHT"/>
+  <property name="scrolling-lines" type="uint" value="10000"/>
+  <property name="title-mode" type="string" value="TERMINAL_TITLE_REPLACE"/>
+</channel>

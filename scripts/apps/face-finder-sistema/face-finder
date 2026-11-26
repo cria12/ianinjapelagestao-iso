@@ -1,0 +1,4 @@
+#!/bin/sh
+# face-finder — deteção de rostos em fotografias (linha de comandos). Programa em /usr/share/face-finder.
+# Uso: face-finder <ficheiro|pasta> [-o saida/] [--limiar 0.8] [--abrir]   (ver face-finder --help)
+exec /usr/bin/python3 /usr/share/face-finder/face_finder.py "$@"

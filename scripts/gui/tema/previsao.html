@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pré-visualização do ambiente</title>
+<style>
+  :root {
+    --painel: rgba(247, 247, 248, 0.82);
+    --dock: rgba(247, 247, 248, 0.55);
+    --texto: #363636;
+    --texto-2: #707070;
+    --janela: #ffffff;
+    --titulo: #f3f3f5;
+    --borda: rgba(0, 0, 0, 0.10);
+    --azul: #0860f2;
+    --fechar: #fd5f57;
+    --minimizar: #fdbc2e;
+    --maximizar: #28c941;
+    --pagina: #e9e9ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 40px;
+    background: var(--pagina); color: #1d1d1f;
+    font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 auto 4px; max-width: 1100px; }
+  .sub { color: #555; font-size: 14px; margin: 0 auto 16px; max-width: 1100px; }
+
+  /* ecrã 16:9 */
+  .ecra {
+    position: relative; max-width: 1100px; margin: 0 auto; aspect-ratio: 16 / 9;
+    border-radius: 10px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.25);
+    container-type: inline-size;
+    /* papel de parede ianinja-claro.svg (mesmos gradientes) */
+    background:
+      radial-gradient(39% 53% at 25% 30%, rgba(122,165,255,.55), rgba(122,165,255,0) 100%),
+      radial-gradient(36% 49% at 77% 24%, rgba(196,157,255,.50), rgba(196,157,255,0) 100%),
+      radial-gradient(42% 46% at 70% 86%, rgba(255,190,148,.55), rgba(255,190,148,0) 100%),
+      radial-gradient(34% 42% at 17% 88%, rgba(143,224,211,.45), rgba(143,224,211,0) 100%),
+      linear-gradient(135deg, #e6edfd 0%, #f1eaf8 55%, #fdf0e6 100%);
+    font-size: clamp(7px, 1.15cqw, 13px);
+  }
+  .marca {
+    position: absolute; right: 3.1%; bottom: 3.6%;
+    letter-spacing: .15em; font-weight: 500; color: rgba(58,63,92,.30); font-size: 1.15em;
+  }
+
+  /* barra superior (panel-1) */
+  .barra {
+    position: absolute; inset: 0 0 auto 0; height: 2.15em;
+    background: var(--painel); color: var(--texto);
+    box-shadow: inset 0 -1px rgba(0,0,0,.08);
+    display: flex; align-items: center; gap: .5em; padding: 0 .6em;
+  }
+  .barra .bt { display: flex; align-items: center; justify-content: center; height: 1.7em; min-width: 1.9em; padding: 0 .45em; border-radius: .45em; }
+  .barra .bt:hover { background: rgba(0,0,0,.07); }
+  .barra svg { width: 1.25em; height: 1.25em; }
+  .espaco { flex: 1; }
+  .relogio { font-weight: 500; white-space: pre; }
+
+  /* ícones do ambiente de trabalho (xfdesktop) */
+  .icones { position: absolute; top: 4em; left: 1.2em; display: grid; gap: 1.3em; }
+  .icone { width: 6.2em; text-align: center; color: #1d1d1f; font-size: .95em; text-shadow: 0 1px 2px rgba(255,255,255,.7); }
+  .icone .img { width: 4.2em; height: 4.2em; margin: 0 auto .3em; border-radius: .8em; }
+  .casa { background: linear-gradient(#7cc3ff, #3a8ef6); clip-path: polygon(0 32%, 38% 32%, 46% 18%, 100% 18%, 100% 92%, 0 92%); border-radius: .3em; }
+  .lixo { background: linear-gradient(#f4f4f6, #c9cbd2); clip-path: polygon(12% 14%, 88% 14%, 80% 96%, 20% 96%); }
+
+  /* janela do terminal (xfwm4 + WhiteSur-Light) */
+  .janela {
+    position: absolute; left: 22%; top: 15%; width: 56%; height: 58%;
+    background: var(--janela); border-radius: .9em; overflow: hidden;
+    box-shadow: 0 1.6em 4em rgba(0,0,0,.28), 0 0 0 1px var(--borda);
+    display: flex; flex-direction: column;
+  }
+  .titulo {
+    height: 2.5em; flex: none; display: flex; align-items: center; position: relative;
+    background: var(--titulo); border-bottom: 1px solid var(--borda); padding: 0 .9em;
+  }
+  .semaforo { display: flex; gap: .55em; }
+  .semaforo i { width: .95em; height: .95em; border-radius: 50%; display: block; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.15); }
+  .semaforo i:nth-child(1) { background: var(--fechar); }
+  .semaforo i:nth-child(2) { background: var(--minimizar); }
+  .semaforo i:nth-child(3) { background: var(--maximizar); }
+  .titulo b { position: absolute; left: 0; right: 0; text-align: center; font-weight: 600; color: var(--texto-2); pointer-events: none; }
+  .term {
+    flex: 1; padding: .8em 1em; margin: 0; overflow: hidden;
+    font-family: "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace; font-size: 1.05em; line-height: 1.45;
+    color: #1d1d1f; background: #fff; white-space: pre;
+  }
+  .verde { color: #248a3d; } .azul { color: #0040dd; } .cinza { color: #6e6e73; }
+  .cursor { display: inline-block; width: .1em; height: 1.1em; background: #1d1d1f; vertical-align: text-bottom; }
+
+  /* pesquisa rápida (xfce4-appfinder --collapsed, Super+Espaço) */
+  .pesquisa {
+    position: absolute; left: 50%; top: 26%; transform: translateX(-50%); width: 34%;
+    background: rgba(255,255,255,.92); border-radius: .8em; padding: .6em;
+    box-shadow: 0 1em 3em rgba(0,0,0,.25), 0 0 0 1px var(--borda);
+    display: none;
+  }
+  .ecra.com-pesquisa .pesquisa { display: block; }
+  .pesquisa .campo { border: 1px solid #c8c8cc; border-radius: .5em; padding: .45em .6em; color: #1d1d1f; box-shadow: 0 0 0 2px rgba(8,96,242,.35); }
+  .pesquisa .res { display: flex; align-items: center; gap: .6em; padding: .45em .5em; border-radius: .4em; margin-top: .35em; }
+  .pesquisa .res.sel { background: var(--azul); color: #fff; }
+  .pesquisa .mini { width: 1.6em; height: 1.6em; border-radius: .35em; flex: none; }
+
+  /* dock (panel-2 + docklike) */
+  .dock {
+    position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%);
+    display: flex; gap: .7em; padding: .45em .9em .65em;
+    background: var(--dock); border-radius: 1.4em;
+    border: 1px solid rgba(255,255,255,.55); box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+  }
+  .app { position: relative; width: 4em; height: 4em; border-radius: .95em; box-shadow: 0 .15em .4em rgba(0,0,0,.18); }
+  .app.aberta::after {
+    content: ""; position: absolute; left: 50%; bottom: -.48em; width: .3em; height: .3em;
+    margin-left: -.15em; border-radius: 50%; background: #363636;
+  }
+  .thunar { background: linear-gradient(#5fb2ff, #1f74e8); }
+  .thunar::before { content: ""; position: absolute; inset: 28% 18% 22%; background: #e8f3ff; border-radius: .25em; clip-path: polygon(0 0, 38% 0, 46% 16%, 100% 16%, 100% 100%, 0 100%); }
+  .terminal { background: linear-gradient(#3c3c40, #1d1d1f); }
+  .terminal::before { content: ">_"; position: absolute; left: 18%; top: 22%; color: #f2f2f7; font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 1.25em; }
+  .appfinder { background: linear-gradient(#f5f5f7, #d9dae0); }
+  .appfinder::before { content: ""; position: absolute; left: 24%; top: 22%; width: 36%; height: 36%; border: .32em solid #6e6e73; border-radius: 50%; }
+  .appfinder::after { content: ""; position: absolute; left: 60%; top: 58%; width: .35em; height: 1.2em; background: #6e6e73; border-radius: .2em; transform: rotate(-45deg); }
+  .definicoes { background: linear-gradient(#c9cbd2, #8e9099); }
+  .definicoes::before { content: ""; position: absolute; inset: 22%; border-radius: 50%; border: .5em dotted #f5f5f7; }
+
+  /* legenda */
+  .notas { max-width: 1100px; margin: 20px auto 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .nota { background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); font-size: 14px; line-height: 1.5; }
+  .nota h2 { font-size: 15px; margin: 0 0 6px; }
+  .nota ul { margin: 0; padding-left: 18px; }
+  .acoes { max-width: 1100px; margin: 14px auto 0; }
+  button.alternar { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 8px; border: 1px solid #c8c8cc; background: #fff; cursor: pointer; }
+  button.alternar:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<h1>ianinjapelagestao — como vai ficar o ambiente gráfico</h1>
+<p class="sub">Maqueta estática do Xfce 4.20 com o tema WhiteSur-Light, a fonte Inter e o papel de parede da distribuição. As cores e a disposição seguem a configuração em scripts/gui/tema/raiz; os ícones da dock são simplificados (no sistema real são os do tema de ícones WhiteSur).</p>
+
+<div class="ecra" id="ecra" role="img" aria-label="Ambiente de trabalho com barra superior, uma janela de terminal e a dock em baixo">
+  <div class="marca">ianinjapelagestao</div>
+
+  <div class="barra">
+    <span class="bt" title="Menu de aplicações">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="#363636" fill-rule="evenodd" d="M8 1a7 7 0 1 0 0 14A7 7 0 1 0 8 1zM1.9 5.9h12.2v3.4H1.9zM3.6 7.6c0-.6 1.1-1 2.1-.9.9.1 1.5.5 1.5.9s-.6.8-1.5.9c-1 .1-2.1-.3-2.1-.9zM12.4 7.6c0-.6-1.1-1-2.1-.9-.9.1-1.5.5-1.5.9s.6.8 1.5.9c1 .1 2.1-.3 2.1-.9z"/></svg>
+    </span>
+    <span class="bt" title="Menu de janelas (ícone da janela ativa)">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="#2b2b2e"/><path d="M4 6.5l2 1.5-2 1.5" stroke="#f2f2f7" stroke-width="1.2" fill="none"/><path d="M7.5 10h3.5" stroke="#f2f2f7" stroke-width="1.2"/></svg>
+    </span>
+    <span class="espaco"></span>
+    <span class="bt" title="Área de notificação: rede">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="#363636" d="M8 13.5l-1.6-1.9a2.3 2.3 0 0 1 3.2 0zM3.5 8.2l1.1 1.3a5 5 0 0 1 6.8 0l1.1-1.3a6.8 6.8 0 0 0-9 0zM1 5.2l1.1 1.3a8.6 8.6 0 0 1 11.8 0L15 5.2a10.4 10.4 0 0 0-14 0z"/></svg>
+    </span>
+    <span class="bt relogio" id="relogio">qui 05 nov  17:30</span>
+    <span class="bt" title="Terminar sessão / desligar">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v6" stroke="#363636" stroke-width="1.6" stroke-linecap="round"/><path d="M4.6 4.4a5 5 0 1 0 6.8 0" stroke="#363636" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+    </span>
+  </div>
+
+  <div class="icones">
+    <div class="icone"><div class="img casa"></div>Pasta pessoal</div>
+    <div class="icone"><div class="img lixo"></div>Lixo</div>
+  </div>
+
+  <div class="janela">
+    <div class="titulo">
+      <span class="semaforo" aria-label="Fechar, minimizar, maximizar"><i></i><i></i><i></i></span>
+      <b>ninja@ianinjapelagestao: ~</b>
+    </div>
+<pre class="term"><span class="verde">ninja@ianinjapelagestao</span>:<span class="azul">~</span>$ ls
+<span class="azul">Documentos  Imagens  Transferências</span>
+<span class="verde">ninja@ianinjapelagestao</span>:<span class="azul">~</span>$ <span class="cursor"></span></pre>
+  </div>
+
+  <div class="pesquisa" aria-hidden="true">
+    <div class="campo">term</div>
+    <div class="res sel"><span class="mini terminal" style="position:relative"></span>Terminal</div>
+    <div class="res"><span class="mini definicoes" style="position:relative"></span>Definições do terminal</div>
+  </div>
+
+  <div class="dock">
+    <div class="app thunar" title="Ficheiros (Thunar)"></div>
+    <div class="app terminal aberta" title="Terminal (aberto)"></div>
+    <div class="app appfinder" title="Localizador de aplicações"></div>
+    <div class="app definicoes" title="Definições"></div>
+  </div>
+</div>
+
+<div class="acoes"><button class="alternar" id="alternar" aria-pressed="false">Mostrar a pesquisa rápida (Super+Espaço)</button></div>
+
+<div class="notas">
+  <div class="nota">
+    <h2>O que vai existir</h2>
+    <ul>
+      <li>Barra superior fina: menu de aplicações com o logótipo da distribuição, ícone da janela ativa (abre a lista de janelas), área de notificação, relógio e botão de sair.</li>
+      <li>Dock centrada em baixo (xfce4-docklike-plugin): aplicações fixadas e abertas, ponto por baixo das abertas, esconde-se quando uma janela a tapa.</li>
+      <li>Botões das janelas à esquerda (fechar, minimizar, maximizar) e sombras do compositor xfwm4.</li>
+      <li>Super+Espaço abre a pesquisa de aplicações (xfce4-appfinder).</li>
+      <li>Terminal claro com JetBrains Mono; interface em Inter.</li>
+    </ul>
+  </div>
+  <div class="nota">
+    <h2>O que não vai existir</h2>
+    <ul>
+      <li>Menu global de aplicações na barra (Ficheiro, Editar...): o Xfce não o tem.</li>
+      <li>O nome da janela ativa por extenso na barra: aparece só o ícone.</li>
+      <li>Ampliação dos ícones da dock ao passar o rato, nem a dock "a flutuar" afastada do fundo do ecrã.</li>
+      <li>Desfoque por trás da barra e da dock: no ecrã real são só translúcidas.</li>
+      <li>Logótipo ou marcas da Apple.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // relógio no formato do painel: "%a %d %b  %H:%M" em português
+  (function () {
+    var dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+    var meses = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    function atualizar() {
+      var d = new Date();
+      document.getElementById("relogio").textContent =
+        dias[d.getDay()] + " " + p(d.getDate()) + " " + meses[d.getMonth()] + "  " + p(d.getHours()) + ":" + p(d.getMinutes());
+    }
+    atualizar(); setInterval(atualizar, 15000);
+    var b = document.getElementById("alternar"), e = document.getElementById("ecra");
+    b.addEventListener("click", function () {
+      var on = e.classList.toggle("com-pesquisa");
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.textContent = on ? "Esconder a pesquisa rápida" : "Mostrar a pesquisa rápida (Super+Espaço)";
+    });
+  })();
+</script>
+</body>
+</html>

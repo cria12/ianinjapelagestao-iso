@@ -1,0 +1,5 @@
+# F8e — bloco 11: guardar os dados automaticamente (backend /usr/sbin/ianinja-persistencia chamado
+# pelo assistente de 1.º arranque: partição nova na pen, ficheiro-imagem no disco do Windows ou
+# partição formatada). Formato id|comando. Ver decisoes-11.txt e persistencia/CONTRATO.md.
+persistencia-instalar|persistencia_instalar      # /usr/sbin/ianinja-persistencia + assistente com as ações persistencia-*
+persistencia-verificar|persistencia_verificar    # estado/listar/criar fora do live; lightdm só pelo aplicar

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar ferramentas de programação
+GenericName=Ferramentas de programação
+Comment=Instala ou atualiza o Rust (rustup), o Go e o Java (OpenJDK), descarregados dos sites oficiais
+Exec=xfce4-terminal "--title=Instalar ferramentas de programação" --geometry=100x34 -x instalar-ferramentas --janela
+Icon=applications-development
+Terminal=false
+StartupNotify=true
+Categories=Development;
+Keywords=instalar;programação;rust;cargo;rustup;go;golang;java;jdk;openjdk;

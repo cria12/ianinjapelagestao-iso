@@ -1,0 +1,13 @@
+# F8e — bloco 1: dependências de execução do VS Code, Google Chrome, Claude Code e Codex, e o comando
+# instalar-aplicacoes (os binários não vão na ISO). Formato id|comando. Ver scripts/apps/decisoes-01.txt.
+nspr|pacote general/nspr                       # libnspr4/libplc4/libplds4 (Chrome, VS Code)
+nss|pacote postlfs/nss                         # libnss3/libnssutil3/libsmime3 (+ nss-standalone-1.patch)
+nettle|pacote postlfs/nettle                   # requerido pelo GnuTLS
+gnutls|pacote postlfs/gnutls                   # requerido pelo CUPS (TLS da libcups)
+xdg-utils|pacote xsoft/xdg-utils               # xdg-open/xdg-settings/xdg-mime (Chrome, VS Code); recomendado pelo CUPS
+cups|pacote pst/cups                           # só pela libcups.so.2 que o Chrome e o VS Code exigem
+cups-bootscript|bootscripts cups               # /etc/rc.d/init.d/cups (o livro: make install-cups)
+cups-sem-arranque|cups_sem_arranque            # serviço NÃO arranca por omissão (tira S35cups; esconde o atalho)
+libsecret|pacote gnome/libsecret               # API Secret Service (Chromium/Electron carregam-na com dlopen)
+instalar-aplicacoes|apps_instalar_comando      # /usr/bin/instalar-aplicacoes + .desktop + ícone + dock
+verificar-bibliotecas|apps_verificar_bibliotecas   # nenhuma biblioteca em falta para VS Code/Chrome (lista do ldd)

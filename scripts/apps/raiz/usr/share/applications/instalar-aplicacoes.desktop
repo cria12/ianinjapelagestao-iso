@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar aplicações
+GenericName=Instalador de aplicações
+Comment=Instala ou atualiza o VS Code, o Google Chrome, o Claude Code e o Codex (descarregados dos sites oficiais)
+Exec=xfce4-terminal "--title=Instalar aplicações" --geometry=100x34 -x instalar-aplicacoes --janela
+Icon=instalar-aplicacoes
+Terminal=false
+StartupNotify=true
+Categories=System;Settings;PackageManager;
+Keywords=instalar;aplicações;vscode;code;chrome;claude;codex;

@@ -1,0 +1,5 @@
+# ciclo: x/xorg-server -> x/x7font -> x/xcursor-themes -> x/x7app -> x/mesa -> x/x7lib -> general/fontconfig -> general/freetype2 -> general/harfbuzz -> general/freetype2
+# ciclo: x/xorg-server -> general/elogind -> postlfs/polkit -> general/elogind
+# ciclo: x/xorg-server -> x/x7driver@xorg-libinput-driver -> x/xorg-server
+# ciclo: xfce/xfce4-session -> xfce/libwnck -> x/gtk3 -> x/adwaita-icon-theme -> x/gtk3
+# ciclo: xfce/xfce4-session -> xfce/libwnck -> x/gtk3 -> x/adwaita-icon-theme -> general/librsvg -> x/gdk-pixbuf -> general/librsvg

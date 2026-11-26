@@ -1,0 +1,53 @@
+/* ianinjapelagestao: retoques ao tema WhiteSur para o painel do Xfce (copiado de /etc/skel).
+ * O GTK 3 não tem um gtk.css para todo o sistema, por isso estas regras vivem aqui.
+ * panel-1 = barra superior, panel-2 = dock (ver /etc/xdg/xfce4/panel/default.xml).
+ * Os cantos arredondados só ficam transparentes com o compositor do xfwm4 ligado. */
+
+/* barra superior: fina, translúcida, texto escuro */
+.xfce4-panel.panel-1 {
+  border: none;
+  box-shadow: inset 0 -1px rgba(0, 0, 0, 0.08);
+}
+.xfce4-panel.panel-1 button {
+  padding: 0 6px;
+  border-radius: 6px;
+}
+
+/* dock: cantos arredondados, contorno e fundo translúcido */
+.xfce4-panel.panel-2 {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  padding: 4px 8px;
+}
+.xfce4-panel.panel-2 button {
+  border-radius: 12px;
+  padding: 2px;
+}
+
+/* texto e ícones simbólicos escuros nos painéis: o WhiteSur pinta o texto do painel de branco
+ * (pensado para um painel escuro/transparente sobre fundo escuro); aqui o painel é claro. */
+.xfce4-panel.background,
+.xfce4-panel.background button,
+.xfce4-panel.background button.flat,
+.xfce4-panel.background label,
+.xfce4-panel.background image {
+  color: #363636;
+}
+.xfce4-panel.background button:hover {
+  background-color: rgba(0, 0, 0, 0.07);
+}
+.xfce4-panel.panel-1 label {
+  font-weight: 500;
+}
+
+/* nomes dos ícones do ambiente de trabalho: escuros sobre o papel de parede claro */
+XfdesktopIconView.view {
+  color: #1d1d1f;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.7);
+}
+XfdesktopIconView.view:active,
+XfdesktopIconView.view:checked {
+  color: #ffffff;
+  text-shadow: none;
+}

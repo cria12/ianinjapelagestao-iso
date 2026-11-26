@@ -1,0 +1,85 @@
+#!/bin/sh
+########################################################################
+# Begin ia-servidor
+#
+# Description : Servidor llama.cpp (API compatível com a OpenAI)
+#
+# Author      : ianinjapelagestao (modelo dos bootscripts do BLFS)
+#
+# Version     : ianinjapelagestao 12.4
+#
+########################################################################
+
+### BEGIN INIT INFO
+# Provides:            ia-servidor
+# Required-Start:      $local_fs
+# Should-Start:        $network
+# Required-Stop:       $local_fs
+# Should-Stop:         $network
+# Default-Start:       2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:   Servidor de IA local (llama-server).
+# Description:         Lança o llama-server em 127.0.0.1:8080 com o modelo
+#                      predefinido. Não é ativado por omissão.
+# X-LFS-Provided-By:   ianinjapelagestao
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+SERVIDOR=/usr/bin/llama-server
+MODELO=/usr/share/ia/modelos/predefinido.gguf
+ENDERECO=127.0.0.1
+PORTA=8080
+CONTEXTO=4096
+THREADS=
+UTILIZADOR=nobody
+REGISTO=/var/log/ia-servidor.log
+ARGS=
+[ -r /etc/sysconfig/ia-servidor ] && . /etc/sysconfig/ia-servidor
+
+case "$1" in
+    start)
+        log_info_msg "A iniciar o servidor de IA (llama-server em ${ENDERECO}:${PORTA})..."
+        if pidofproc "$SERVIDOR" > /dev/null; then
+            log_warning_msg "(já está a correr)"
+            exit 0
+        fi
+        if [ ! -e "$MODELO" ]; then
+            log_failure_msg "(modelo $MODELO não encontrado)"
+            exit 1
+        fi
+        [ -n "$THREADS" ] || THREADS=$(/bin/bash -c '. /usr/share/ia/ia-comum.sh; ia_threads')
+        touch "$REGISTO" && chown "$UTILIZADOR" "$REGISTO"
+        su -s /bin/sh -c "exec $SERVIDOR -m '$MODELO' --host '$ENDERECO' --port '$PORTA' \
+            -c '$CONTEXTO' -t '$THREADS' --alias predefinido $ARGS >> '$REGISTO' 2>&1 < /dev/null" \
+            "$UTILIZADOR" &
+        sleep 1
+        pidofproc "$SERVIDOR" > /dev/null
+        evaluate_retval
+        ;;
+
+    stop)
+        log_info_msg "A parar o servidor de IA..."
+        killproc "$SERVIDOR"
+        evaluate_retval
+        ;;
+
+    restart)
+        $0 stop
+        sleep 1
+        $0 start
+        ;;
+
+    status)
+        statusproc "$SERVIDOR"
+        ;;
+
+    *)
+        echo "Uso: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit 0
+
+# End ia-servidor

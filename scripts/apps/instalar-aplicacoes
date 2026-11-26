@@ -1,0 +1,643 @@
+#!/bin/bash
+# instalar-aplicacoes — instala (ou atualiza) as aplicações que, por licença, não podem ir dentro
+# da ISO do ianinjapelagestao: descarrega as versões oficiais dos sites dos fabricantes.
+#
+# Uso: instalar-aplicacoes [vscode|chrome|claude|codex|tudo]...   (sem argumentos: menu)
+#      instalar-aplicacoes -l          estado das aplicações (instalada? versão? onde?)
+#      instalar-aplicacoes -f <app>    reinstala mesmo que já esteja na versão mais recente
+#      instalar-aplicacoes -s <app>    não pergunta nada (aceita os avisos)
+#
+#   vscode   Visual Studio Code (Microsoft)  -> /opt/vscode, comando "code"
+#   chrome   Google Chrome (Google)          -> /opt/google/chrome, comando "google-chrome"
+#   claude   Claude Code (Anthropic)         -> ~/.local/bin/claude do utilizador (instalador oficial)
+#   codex    Codex CLI (OpenAI) + ripgrep    -> /usr/local/bin/codex e /usr/local/bin/rg
+# Repetir o comando atualiza para a versão mais recente. Usa sudo para o que é do sistema.
+#
+# Variáveis para testes (fora do sistema): IA_APPS_RAIZ=<dir> instala em <dir>/opt, <dir>/usr...
+# em vez de /; IA_APPS_SEM_SUDO=1 não usa sudo; IA_APPS_SEM_EXECUTAR=1 não corre nenhum binário
+# nem instalador descarregado (só descarrega, verifica e extrai).
+set -uo pipefail
+export LC_ALL=${LC_ALL:-C.UTF-8}
+
+RAIZ=${IA_APPS_RAIZ:-}
+RAIZ=${RAIZ%/}
+SEM_EXECUTAR=${IA_APPS_SEM_EXECUTAR:-0}
+ESTADO=$RAIZ/var/lib/instalar-aplicacoes
+FORCAR=0
+SIM=0
+JANELA=0
+NOME=$(basename "$0")
+
+# Origens oficiais
+VSCODE_API=https://update.code.visualstudio.com/api/update/linux-x64/stable/latest
+CHROME_REPO=https://dl.google.com/linux/chrome/deb
+CHROME_PACKAGES=$CHROME_REPO/dists/stable/main/binary-amd64/Packages
+CLAUDE_INSTALADOR=https://claude.ai/install.sh
+CODEX_API=https://api.github.com/repos/openai/codex/releases/latest
+CODEX_ASSET=codex-x86_64-unknown-linux-musl.tar.gz
+RG_API=https://api.github.com/repos/BurntSushi/ripgrep/releases/latest
+
+# Espaço necessário (MiB) durante a instalação: descarga + extração, com margem
+declare -A ESPACO=([vscode]=1700 [chrome]=900 [claude]=800 [codex]=500)
+declare -A TITULO=([vscode]="Visual Studio Code" [chrome]="Google Chrome" [claude]="Claude Code (CLI)" [codex]="Codex (CLI da OpenAI)")
+declare -A LICENCA=(
+  [vscode]="https://code.visualstudio.com/license"
+  [chrome]="https://www.google.com/chrome/terms/"
+  [claude]="https://www.anthropic.com/legal/commercial-terms"
+  [codex]="https://github.com/openai/codex/blob/main/LICENSE (Apache-2.0)")
+
+if [ -t 1 ]; then
+  N=$'\e[1m'; V=$'\e[32m'; A=$'\e[33m'; E=$'\e[31m'; R=$'\e[0m'
+else
+  N=; V=; A=; E=; R=
+fi
+msg()   { echo "${N}==>${R} $*"; }
+ok()    { echo "${V}OK${R}  $*"; }
+aviso() { echo "${A}Aviso:${R} $*" >&2; }
+falha() { echo "${E}Erro:${R} $*" >&2; return 1; }
+erro()  { echo "${E}$NOME:${R} $*" >&2; exit 1; }
+
+uso() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+# --- privilégios: o que é do sistema corre como root (sudo; o ninja tem sudo sem senha)
+eh_root() { [ "$(id -u)" = 0 ]; }
+como_root() {
+  if eh_root || [ "${IA_APPS_SEM_SUDO:-0}" = 1 ]; then "$@"; else sudo "$@"; fi
+}
+preparar_sudo() {
+  eh_root || [ "${IA_APPS_SEM_SUDO:-0}" = 1 ] && return 0
+  type -P sudo > /dev/null || falha "é preciso o sudo (ou correr como root) para instalar no sistema" || return 1
+  sudo -v || falha "o sudo não autorizou (senha errada?)"
+}
+
+# Utilizador "real" (quem chamou o comando, mesmo através de sudo) e a sua pasta pessoal
+utilizador() {
+  if eh_root; then echo "${SUDO_USER:-root}"; else id -un; fi
+}
+pasta_de() { getent passwd "$1" | cut -d: -f6; }
+
+# --- verificações prévias
+tem_internet() {
+  local u
+  for u in https://dl.google.com https://github.com https://update.code.visualstudio.com; do
+    curl -sS -o /dev/null -I --max-time 12 "$u" 2> /dev/null && return 0   # qualquer resposta HTTP serve
+  done
+  return 1
+}
+
+# MiB livres no sistema de ficheiros que contém (ou vai conter) o caminho
+livre_mib() {
+  local d=$1
+  while [ ! -d "$d" ]; do d=$(dirname "$d"); done
+  df -Pk "$d" | awk 'NR==2{print int($4/1024)}'
+}
+verificar_espaco() { # verificar_espaco <app> <caminho>
+  local precisa=${ESPACO[$1]} livre
+  livre=$(livre_mib "$2")
+  if [ "$livre" -lt "$precisa" ]; then
+    falha "espaço insuficiente para ${TITULO[$1]}: são precisos ~$precisa MiB em $2, há $livre MiB livres" || return 1
+  fi
+  echo "Espaço livre em $2: $livre MiB (necessário ~$precisa MiB)"
+}
+
+sessao_live() { [ -z "$RAIZ" ] && mountpoint -q /run/live/iso 2> /dev/null; }
+com_persistencia() { mountpoint -q /mnt/dados 2> /dev/null; }
+
+aviso_live() {
+  sessao_live || return 0
+  if com_persistencia; then
+    echo "Sessão live com persistência (disco IANINJA-DADOS em /mnt/dados): o que instalar fica guardado."
+    return 0
+  fi
+  echo
+  echo "${A}################################################################${R}"
+  echo "  Está numa sessão live SEM persistência: tudo o que instalar fica"
+  echo "  na memória RAM e PERDE-SE ao desligar ou reiniciar o computador."
+  echo "  Para guardar as aplicações entre arranques, crie um disco de dados:"
+  echo "      sudo ia-criar-persistencia /dev/<partição>      (ex.: /dev/sdb1)"
+  echo "  e reinicie; depois volte a correr $NOME."
+  echo "  (As aplicações também ocupam RAM: o VS Code precisa de ~1,7 GB livres.)"
+  echo "${A}################################################################${R}"
+  [ $SIM = 1 ] || [ ! -t 0 ] && return 0
+  local r
+  read -r -p "Continuar mesmo assim? [S/n] " r
+  case $r in [nN]*) echo "Cancelado."; exit 1 ;; esac
+}
+
+aceitar_licenca() { # aceitar_licenca <app>
+  echo "${TITULO[$1]} é distribuído pelo fabricante com a sua própria licença:"
+  echo "  ${LICENCA[$1]}"
+  echo "Ao instalar aceita essa licença. A descarga é feita diretamente do site oficial."
+}
+
+# --- utilitários de descarga
+json() { # json <campo.subcampo...>  (lê JSON da entrada padrão)
+  python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+for k in sys.argv[1].split("."):
+    d = d[int(k)] if isinstance(d, list) else d.get(k, "")
+print(d if d is not None else "")' "$1"
+}
+
+# asset_github <json da release> <nome do anexo> -> "url sha256" (sha256 pode faltar)
+asset_github() {
+  python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+for a in d.get("assets", []):
+    if a["name"] == sys.argv[1]:
+        dg = a.get("digest") or ""
+        print(a["browser_download_url"], dg.split(":", 1)[1] if dg.startswith("sha256:") else "")
+        break' "$1"
+}
+
+# extrair_verificado <url> <sha256|""> <destino> [opções do tar]
+# Descarrega e extrai em simultâneo (sem guardar o arquivo: poupa RAM numa sessão live) e
+# confere o SHA-256 no fim; se não bater certo, apaga o que extraiu.
+extrair_verificado() {
+  local url=$1 sha=$2 dest=$3; shift 3
+  local soma rc i
+  rm -f "$TMPD/tar.rc" "$TMPD/curl.falhou"
+  soma=$( { curl -fL --retry 3 --progress-bar "$url" || touch "$TMPD/curl.falhou"; } \
+          | tee >(como_root tar -x "$@" --no-same-owner -C "$dest"; echo $? > "$TMPD/tar.rc") \
+          | sha256sum | cut -d' ' -f1 )
+  # o tar corre numa substituição de processos: espera (até 2 min) que escreva o código de saída
+  for i in $(seq 600); do [ -s "$TMPD/tar.rc" ] && break; sleep 0.2; done
+  rc=$(cat "$TMPD/tar.rc" 2> /dev/null || echo 1)
+  [ -e "$TMPD/curl.falhou" ] && rc=curl
+  rm -f "$TMPD/tar.rc" "$TMPD/curl.falhou"
+  [ "$rc" = 0 ] || { falha "falhou a descarga/extração de $url ($rc)"; return 1; }
+  if [ -n "$sha" ]; then
+    [ "$soma" = "$sha" ] || { falha "SHA-256 errado ($soma, esperado $sha) em $url"; return 1; }
+    echo "SHA-256 verificado: $soma"
+  else
+    aviso "o fabricante não indicou o SHA-256; descarga feita por HTTPS ($soma)"
+  fi
+}
+
+# troca_dir <novo> <final> — substitui o diretório final pelo novo (quase atómico)
+troca_dir() {
+  local novo=$1 fim=$2
+  como_root mkdir -p "$(dirname "$fim")" || return 1
+  como_root rm -rf "$fim.antigo" || return 1
+  if [ -e "$fim" ]; then como_root mv "$fim" "$fim.antigo" || return 1; fi
+  como_root mv "$novo" "$fim" || { [ -e "$fim.antigo" ] && como_root mv "$fim.antigo" "$fim"; return 1; }
+  como_root rm -rf "$fim.antigo"
+}
+
+guardar_versao() { # guardar_versao <app> <versão>
+  como_root mkdir -p "$ESTADO" && echo "$2" | como_root tee "$ESTADO/$1.versao" > /dev/null
+}
+versao_guardada() { cat "$ESTADO/$1.versao" 2> /dev/null || true; }
+
+atualizar_caches() {
+  type -P update-desktop-database > /dev/null && como_root update-desktop-database -q "$RAIZ/usr/share/applications" 2> /dev/null
+  type -P gtk-update-icon-cache > /dev/null && [ -f "$RAIZ/usr/share/icons/hicolor/index.theme" ] &&
+    como_root gtk-update-icon-cache -qtf "$RAIZ/usr/share/icons/hicolor" 2> /dev/null
+  return 0
+}
+
+# instalar_ficheiro <modo> <destino>  (conteúdo pela entrada padrão)
+instalar_ficheiro() {
+  como_root mkdir -p "$(dirname "$2")" && como_root tee "$2" > /dev/null && como_root chmod "$1" "$2"
+}
+
+# Sandbox do Chromium/Electron: chrome-sandbox com setuid root, como fazem os pacotes .deb
+sandbox_setuid() { # sandbox_setuid <ficheiro>
+  [ -f "$1" ] || return 0
+  if [ -n "$RAIZ" ] && ! eh_root; then return 0; fi
+  como_root chown root:root "$1" && como_root chmod 4755 "$1"
+}
+
+# Funções comuns dos lançadores /usr/bin/code e /usr/bin/google-chrome (escritas nos ficheiros)
+LANCADOR_COMUM='# Sem cofre de segredos (gnome-keyring/KWallet/KeePassXC) na sessão D-Bus, as palavras-passe
+# e os tokens ficam guardados com a encriptação "basic" (ficheiro local) em vez de falhar.
+tem_cofre() {
+  type -P dbus-send > /dev/null || return 1
+  dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus.NameHasOwner string:org.freedesktop.secrets 2> /dev/null | grep -q "boolean true" && return 0
+  dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus.ListActivatableNames 2> /dev/null | grep -q "\"org.freedesktop.secrets\""
+}
+# A sandbox do Chromium usa namespaces de utilizador ou, se faltarem, o chrome-sandbox com setuid
+# root. Só se nenhum dos dois funcionar se arranca com --no-sandbox (menos seguro), com aviso.
+sandbox_funciona() { # sandbox_funciona <chrome-sandbox>
+  unshare -Ur true 2> /dev/null && return 0
+  [ "$(stat -c %u:%a "$1" 2> /dev/null)" = 0:4755 ] || return 1
+  ! findmnt -no OPTIONS -T "$1" 2> /dev/null | tr , "\n" | grep -qx nosuid
+}'
+
+# ======================================================================== VS Code
+versao_vscode() {
+  sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$RAIZ/opt/vscode/resources/app/package.json" 2> /dev/null | head -1
+}
+
+lancadores_vscode() {
+  instalar_ficheiro 755 "$RAIZ/usr/bin/code" << EOF || return 1
+#!/bin/bash
+# /usr/bin/code — lançador do Visual Studio Code (/opt/vscode), escrito por instalar-aplicacoes.
+$LANCADOR_COMUM
+extra=()
+tem_cofre || extra+=(--password-store=basic)
+if ! sandbox_funciona /opt/vscode/chrome-sandbox; then
+  echo "code: a sandbox do Chromium não funciona neste sistema; a arrancar com --no-sandbox" >&2
+  extra+=(--no-sandbox)
+fi
+exec /opt/vscode/bin/code "\${extra[@]}" "\$@"
+EOF
+  instalar_ficheiro 644 "$RAIZ/usr/share/applications/code.desktop" << "EOF" || return 1
+[Desktop Entry]
+Name=Visual Studio Code
+Comment=Editor de código da Microsoft
+GenericName=Editor de texto
+Exec=/usr/bin/code %F
+Icon=vscode
+Type=Application
+StartupNotify=false
+StartupWMClass=Code
+Categories=TextEditor;Development;IDE;
+MimeType=text/plain;inode/directory;application/x-code-workspace;
+Actions=new-empty-window;
+Keywords=vscode;código;editor;
+
+[Desktop Action new-empty-window]
+Name=Nova janela vazia
+Exec=/usr/bin/code --new-window %F
+Icon=vscode
+EOF
+  # tratador dos endereços vscode:// (necessário para iniciar sessão com GitHub/Microsoft)
+  instalar_ficheiro 644 "$RAIZ/usr/share/applications/code-url-handler.desktop" << "EOF" || return 1
+[Desktop Entry]
+Name=Visual Studio Code - tratador de URL
+Comment=Editor de código da Microsoft
+Exec=/usr/bin/code --open-url %U
+Icon=vscode
+Type=Application
+NoDisplay=true
+StartupNotify=true
+Categories=Utility;TextEditor;Development;IDE;
+MimeType=x-scheme-handler/vscode;
+EOF
+  local png=$RAIZ/opt/vscode/resources/app/resources/linux/code.png
+  if [ -f "$png" ]; then
+    como_root install -D -m644 "$png" "$RAIZ/usr/share/pixmaps/vscode.png" || return 1
+    como_root install -D -m644 "$png" "$RAIZ/usr/share/icons/hicolor/512x512/apps/vscode.png" || return 1
+  fi
+  atualizar_caches
+}
+
+instalar_vscode() {
+  msg "Visual Studio Code"
+  aceitar_licenca vscode
+  local info url sha ver atual
+  info=$(curl -fsSL --max-time 30 "$VSCODE_API") || { falha "não consegui consultar $VSCODE_API"; return 1; }
+  url=$(json url <<< "$info"); sha=$(json sha256hash <<< "$info"); ver=$(json productVersion <<< "$info")
+  [ -n "$url" ] && [ -n "$ver" ] || { falha "resposta inesperada de $VSCODE_API"; return 1; }
+  atual=$(versao_vscode)
+  if [ "$atual" = "$ver" ] && [ $FORCAR = 0 ]; then
+    ok "o VS Code já está na versão mais recente ($ver); a refazer só os atalhos"
+    lancadores_vscode || return 1
+    return 0
+  fi
+  echo "Versão ${atual:+$atual -> }$ver"
+  verificar_espaco vscode "$RAIZ/opt" || return 1
+  local st=$RAIZ/opt/.vscode.novo
+  como_root rm -rf "$st" && como_root mkdir -p "$st" || return 1
+  echo "A descarregar e extrair $url ..."
+  extrair_verificado "$url" "$sha" "$st" -z || { como_root rm -rf "$st"; return 1; }
+  [ -x "$st/VSCode-linux-x64/code" ] || { como_root rm -rf "$st"; falha "o arquivo do VS Code não tem VSCode-linux-x64/code"; return 1; }
+  troca_dir "$st/VSCode-linux-x64" "$RAIZ/opt/vscode" || { como_root rm -rf "$st"; return 1; }
+  como_root rm -rf "$st"
+  sandbox_setuid "$RAIZ/opt/vscode/chrome-sandbox" || return 1
+  lancadores_vscode || return 1
+  guardar_versao vscode "$ver"
+  ok "VS Code $(versao_vscode) instalado em /opt/vscode (comando: code; menu: Desenvolvimento)"
+}
+
+# ======================================================================== Google Chrome
+lancadores_chrome() {
+  local d=$RAIZ/opt/google/chrome
+  instalar_ficheiro 755 "$RAIZ/usr/bin/google-chrome" << EOF || return 1
+#!/bin/bash
+# /usr/bin/google-chrome — lançador do Google Chrome (/opt/google/chrome), escrito por instalar-aplicacoes.
+$LANCADOR_COMUM
+extra=()
+tem_cofre || extra+=(--password-store=basic)
+if ! sandbox_funciona /opt/google/chrome/chrome-sandbox; then
+  echo "google-chrome: a sandbox do Chromium não funciona neste sistema; a arrancar com --no-sandbox" >&2
+  extra+=(--no-sandbox)
+fi
+exec /opt/google/chrome/google-chrome "\${extra[@]}" "\$@"
+EOF
+  como_root ln -sfn google-chrome "$RAIZ/usr/bin/google-chrome-stable" || return 1
+  local s
+  for s in 16 24 32 48 64 128 256; do
+    [ -f "$d/product_logo_$s.png" ] || continue
+    como_root install -D -m644 "$d/product_logo_$s.png" "$RAIZ/usr/share/icons/hicolor/${s}x$s/apps/google-chrome.png" || return 1
+  done
+  atualizar_caches
+}
+
+instalar_chrome() {
+  msg "Google Chrome"
+  aceitar_licenca chrome
+  local pk ver fich sha atual
+  pk=$(curl -fsSL --max-time 30 "$CHROME_PACKAGES" | awk '/^Package: google-chrome-stable$/{p=1} p&&/^$/{exit} p') \
+    || { falha "não consegui consultar $CHROME_PACKAGES"; return 1; }
+  ver=$(sed -n 's/^Version: //p' <<< "$pk"); fich=$(sed -n 's/^Filename: //p' <<< "$pk"); sha=$(sed -n 's/^SHA256: //p' <<< "$pk")
+  [ -n "$ver" ] && [ -n "$fich" ] && [ -n "$sha" ] || { falha "não encontrei google-chrome-stable em $CHROME_PACKAGES"; return 1; }
+  atual=$(versao_guardada chrome)
+  [ -x "$RAIZ/opt/google/chrome/chrome" ] || atual=
+  if [ "$atual" = "$ver" ] && [ $FORCAR = 0 ]; then
+    ok "o Google Chrome já está na versão mais recente ($ver); a refazer só os atalhos"
+    lancadores_chrome || return 1
+    return 0
+  fi
+  echo "Versão ${atual:+$atual -> }$ver"
+  verificar_espaco chrome "$RAIZ/opt" || return 1
+  local st=$RAIZ/opt/google/.chrome.novo
+  como_root rm -rf "$st" && como_root mkdir -p "$st/data" || return 1
+  echo "A descarregar $CHROME_REPO/$fich ..."
+  como_root curl -fL --retry 3 --progress-bar -o "$st/chrome.deb" "$CHROME_REPO/$fich" \
+    || { como_root rm -rf "$st"; falha "falhou a descarga do Chrome"; return 1; }
+  if [ "$(sha256sum "$st/chrome.deb" | cut -d' ' -f1)" != "$sha" ]; then
+    como_root rm -rf "$st"; falha "SHA-256 errado no pacote do Chrome"; return 1
+  fi
+  echo "SHA-256 verificado: $sha"
+  echo "A extrair o pacote (.deb: ar + tar) ..."
+  local membro
+  membro=$(ar t "$st/chrome.deb" | grep '^data\.tar') || { como_root rm -rf "$st"; falha "pacote .deb sem data.tar"; return 1; }
+  case "$membro" in
+    data.tar) ar p "$st/chrome.deb" "$membro" | como_root tar -xf - -C "$st/data" ;;
+    data.tar.gz|data.tar.z) ar p "$st/chrome.deb" "$membro" | como_root tar -xzf - -C "$st/data" ;;
+    data.tar.xz) ar p "$st/chrome.deb" "$membro" | como_root tar -xJf - -C "$st/data" ;;
+    data.tar.bz2) ar p "$st/chrome.deb" "$membro" | como_root tar -xjf - -C "$st/data" ;;
+    data.tar.zst) ar p "$st/chrome.deb" "$membro" | zstd -dc | como_root tar -xf - -C "$st/data" ;;
+    *) como_root rm -rf "$st"; falha "formato de arquivo não suportado no pacote: $membro"; return 1 ;;
+  esac || { como_root rm -rf "$st"; falha "não consegui extrair $membro"; return 1; }
+  como_root chmod 755 "$st/data" || { como_root rm -rf "$st"; return 1; }
+  como_root rm -f "$st/chrome.deb"
+  if [ ! -x "$st/data/opt/google/chrome/chrome" ]; then
+    local encontrados
+    encontrados=$(find "$st/data/opt/google/chrome" -maxdepth 1 -type f -printf '%f ' 2> /dev/null)
+    como_root rm -rf "$st"
+    falha "pacote extraído sem opt/google/chrome/chrome (ficheiros encontrados: ${encontrados:-nenhum})"
+    return 1
+  fi
+  troca_dir "$st/data/opt/google/chrome" "$RAIZ/opt/google/chrome" || { como_root rm -rf "$st"; return 1; }
+  local f
+  for f in google-chrome.desktop com.google.Chrome.desktop; do
+    [ -f "$st/data/usr/share/applications/$f" ] &&
+      como_root install -D -m644 "$st/data/usr/share/applications/$f" "$RAIZ/usr/share/applications/$f"
+  done
+  [ -f "$st/data/usr/share/man/man1/google-chrome-stable.1.gz" ] &&
+    como_root install -D -m644 "$st/data/usr/share/man/man1/google-chrome-stable.1.gz" "$RAIZ/usr/share/man/man1/google-chrome-stable.1.gz"
+  como_root rm -rf "$st"
+  sandbox_setuid "$RAIZ/opt/google/chrome/chrome-sandbox" || return 1
+  lancadores_chrome || return 1
+  guardar_versao chrome "$ver"
+  navegador_predefinido
+  ok "Google Chrome $ver instalado em /opt/google/chrome (comando: google-chrome; menu: Internet)"
+}
+
+# O sistema não traz navegador: sem predefinido, o Xfce abre "Escolha a aplicação preferida".
+# Torna o Chrome o navegador do utilizador real (xdg-mime/xdg-settings e helpers.rc do Xfce).
+navegador_predefinido() {
+  [ -z "$RAIZ" ] || return 0
+  local u casa; u=$(utilizador); casa=$(pasta_de "$u")
+  [ "$u" != root ] && [ -d "$casa" ] || return 0
+  local corre=(); eh_root && corre=(sudo -u "$u" env HOME="$casa")
+  "${corre[@]}" xdg-mime default google-chrome.desktop x-scheme-handler/http x-scheme-handler/https text/html 2> /dev/null || true
+  "${corre[@]}" xdg-settings set default-web-browser google-chrome.desktop 2> /dev/null || true
+  "${corre[@]}" mkdir -p "$casa/.config/xfce4"
+  local h="$casa/.config/xfce4/helpers.rc"
+  if [ -f "$h" ] && grep -q "^WebBrowser=" "$h"; then
+    "${corre[@]}" sed -i "s/^WebBrowser=.*/WebBrowser=google-chrome/" "$h"
+  else
+    echo "WebBrowser=google-chrome" | "${corre[@]}" tee -a "$h" > /dev/null
+  fi
+  echo "   Navegador predefinido: Google Chrome"
+}
+
+# ======================================================================== Claude Code
+instalar_claude() {
+  msg "Claude Code"
+  aceitar_licenca claude
+  local u casa
+  u=$(utilizador)
+  [ "$u" != root ] || { falha "o Claude Code instala-se na pasta pessoal de um utilizador normal: corra '$NOME claude' como esse utilizador (ex.: ninja), não como root"; return 1; }
+  casa=$(pasta_de "$u")
+  [ -d "$casa" ] || { falha "pasta pessoal de $u não encontrada"; return 1; }
+  verificar_espaco claude "$casa" || return 1
+  local corre=(bash -c 'set -o pipefail; curl -fsSL "$1" | bash' _ "$CLAUDE_INSTALADOR")
+  if eh_root; then corre=(sudo -u "$u" -H "${corre[@]}"); fi
+  if [ "$SEM_EXECUTAR" = 1 ]; then
+    curl -fsSL -o /dev/null "$CLAUDE_INSTALADOR" || { falha "não consegui obter $CLAUDE_INSTALADOR"; return 1; }
+    ok "modo de teste: instalador oficial acessível, não executado"
+    return 0
+  fi
+  echo "A correr o instalador oficial ($CLAUDE_INSTALADOR) como o utilizador $u ..."
+  "${corre[@]}" || { falha "o instalador oficial do Claude Code falhou"; return 1; }
+  # ~/.local/bin no PATH dos terminais (o ~/.bashrc é lido pelo xfce4-terminal e pelo login)
+  local rc=$casa/.bashrc marca="# instalar-aplicacoes: ~/.local/bin no PATH (Claude Code)"
+  if ! grep -qF "$marca" "$rc" 2> /dev/null; then
+    local linhas
+    linhas=$(printf '\n%s\ncase ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) [ -d "$HOME/.local/bin" ] && PATH="$HOME/.local/bin:$PATH" ;; esac\n' "$marca")
+    if eh_root; then sudo -u "$u" tee -a "$rc" <<< "$linhas" > /dev/null; else tee -a "$rc" <<< "$linhas" > /dev/null; fi
+  fi
+  local bin=$casa/.local/bin/claude v
+  [ -x "$bin" ] || { falha "o instalador terminou mas não existe $bin"; return 1; }
+  if eh_root; then v=$(sudo -u "$u" -H "$bin" --version 2> /dev/null); else v=$("$bin" --version 2> /dev/null); fi
+  ok "Claude Code ${v:-} instalado em $bin (abra um terminal novo e escreva: claude)"
+}
+
+# ======================================================================== Codex
+versao_codex() {
+  [ -x "$RAIZ/usr/local/bin/codex" ] && versao_guardada codex
+}
+
+instalar_codex() {
+  msg "Codex (CLI da OpenAI)"
+  aceitar_licenca codex
+  local rel tag url sha atual
+  rel=$(curl -fsSL --max-time 30 "$CODEX_API" 2> /dev/null) || rel=
+  tag=$(json tag_name <<< "${rel:-{\}}" 2> /dev/null)
+  read -r url sha < <(asset_github "$CODEX_ASSET" <<< "${rel:-{\}}" 2> /dev/null) || true
+  if [ -z "$url" ]; then
+    aviso "a API do GitHub não respondeu (limite de pedidos?); a usar a ligação 'latest' sem SHA-256"
+    url=https://github.com/openai/codex/releases/latest/download/$CODEX_ASSET; sha=; tag=latest
+  fi
+  atual=$(versao_codex)
+  if [ "$atual" = "$tag" ] && [ "$tag" != latest ] && [ $FORCAR = 0 ]; then
+    ok "o Codex já está na versão mais recente ($tag)"
+  else
+    echo "Versão ${atual:+$atual -> }$tag"
+    verificar_espaco codex "$RAIZ/usr/local" || return 1
+    local st=$RAIZ/usr/local/.codex.novo
+    como_root rm -rf "$st" && como_root mkdir -p "$st" || return 1
+    echo "A descarregar e extrair $url ..."
+    extrair_verificado "$url" "$sha" "$st" -z || { como_root rm -rf "$st"; return 1; }
+    local b; b=$(find "$st" -maxdepth 2 -type f -name 'codex-x86_64-unknown-linux-musl' | head -1)
+    [ -n "$b" ] || { como_root rm -rf "$st"; falha "o arquivo não tem o binário codex-x86_64-unknown-linux-musl"; return 1; }
+    como_root install -D -m755 "$b" "$RAIZ/usr/local/bin/codex" || { como_root rm -rf "$st"; return 1; }
+    como_root rm -rf "$st"
+    guardar_versao codex "$tag"
+  fi
+  instalar_ripgrep || aviso "não foi possível instalar o ripgrep (o Codex funciona na mesma, mas mais lento a pesquisar)"
+  local v=
+  [ "$SEM_EXECUTAR" = 1 ] || v=$("$RAIZ/usr/local/bin/codex" --version 2> /dev/null)
+  ok "Codex ${v:-$tag} instalado em /usr/local/bin/codex (escreva: codex; na 1.ª vez inicia sessão na OpenAI)"
+}
+
+# ripgrep (rg): o Codex e os agentes usam-no para pesquisar no código. Binário estático oficial.
+instalar_ripgrep() {
+  local rel tag url sha atual
+  rel=$(curl -fsSL --max-time 30 "$RG_API" 2> /dev/null) || return 1
+  tag=$(json tag_name <<< "$rel")
+  [ -n "$tag" ] || return 1
+  atual=$(versao_guardada ripgrep)
+  if [ "$atual" = "$tag" ] && [ -x "$RAIZ/usr/local/bin/rg" ] && [ $FORCAR = 0 ]; then
+    echo "ripgrep $tag já instalado"; return 0
+  fi
+  read -r url sha < <(asset_github "ripgrep-$tag-x86_64-unknown-linux-musl.tar.gz" <<< "$rel") || return 1
+  [ -n "$url" ] || return 1
+  local st=$RAIZ/usr/local/.rg.novo
+  como_root rm -rf "$st" && como_root mkdir -p "$st" || return 1
+  echo "A descarregar o ripgrep $tag ..."
+  extrair_verificado "$url" "$sha" "$st" -z || { como_root rm -rf "$st"; return 1; }
+  como_root install -D -m755 "$st/ripgrep-$tag-x86_64-unknown-linux-musl/rg" "$RAIZ/usr/local/bin/rg" || { como_root rm -rf "$st"; return 1; }
+  como_root rm -rf "$st"
+  guardar_versao ripgrep "$tag"
+  echo "ripgrep $tag instalado em /usr/local/bin/rg"
+}
+
+# ======================================================================== estado / menu
+estado_app() { # estado_app <app> -> uma linha curta
+  local v u casa
+  case $1 in
+    vscode) v=$(versao_vscode); [ -n "$v" ] && echo "instalado $v (/opt/vscode)" ;;
+    chrome) [ -x "$RAIZ/opt/google/chrome/chrome" ] && echo "instalado $(versao_guardada chrome) (/opt/google/chrome)" ;;
+    claude)
+      u=$(utilizador); casa=$(pasta_de "$u")
+      if [ -n "$casa" ] && [ -x "$casa/.local/bin/claude" ]; then
+        v=
+        if [ "$SEM_EXECUTAR" != 1 ]; then
+          if eh_root && [ "$u" != root ]; then v=$(sudo -u "$u" -H "$casa/.local/bin/claude" --version 2> /dev/null)
+          else v=$("$casa/.local/bin/claude" --version 2> /dev/null); fi
+        fi
+        echo "instalado ${v:+$v }($casa/.local/bin/claude, utilizador $u)"
+      fi ;;
+    codex) [ -x "$RAIZ/usr/local/bin/codex" ] && echo "instalado $(versao_codex) (/usr/local/bin/codex)$([ -x "$RAIZ/usr/local/bin/rg" ] && echo ", ripgrep $(versao_guardada ripgrep)")" ;;
+  esac
+}
+
+listar() {
+  local a e
+  echo "Aplicações instaláveis (descarregadas dos sites oficiais):"
+  for a in vscode chrome claude codex; do
+    e=$(estado_app $a)
+    printf '  %-8s %-24s %s\n' "$a" "${TITULO[$a]}" "${e:-não instalado}"
+  done
+  if sessao_live; then
+    com_persistencia && echo "Sessão live com persistência (/mnt/dados)." \
+      || echo "Sessão live SEM persistência: o que instalar perde-se ao desligar (ver: ia-criar-persistencia)."
+  fi
+  echo "Espaço livre: /opt $(livre_mib "$RAIZ/opt") MiB, pasta pessoal $(livre_mib "$(pasta_de "$(utilizador)")") MiB"
+}
+
+instalar() { # instalar <app>...
+  local a falhas=() feitas=()
+  for a in "$@"; do
+    case $a in vscode|chrome|codex) preparar_sudo || return 1; break ;; esac
+  done
+  for a in "$@"; do
+    echo
+    if "instalar_$a"; then feitas+=("$a"); else falhas+=("$a"); fi
+  done
+  echo
+  [ ${#feitas[@]} -gt 0 ] && ok "concluído: ${feitas[*]}"
+  [ ${#falhas[@]} -eq 0 ] || { falha "falhou: ${falhas[*]} (repita o comando para tentar de novo)"; return 1; }
+}
+
+preparar() {
+  TMPD=$(mktemp -d "${TMPDIR:-/tmp}/instalar-aplicacoes.XXXXXX") || erro "não consegui criar uma pasta temporária"
+  trap 'rm -rf "$TMPD"' EXIT
+  exec 9> "$TMPD/../instalar-aplicacoes-$(id -u).lock"
+  flock -n 9 || erro "já está a correr outro $NOME"
+  local c
+  for c in curl tar sha256sum python3 ar; do type -P $c > /dev/null || erro "falta o comando $c"; done
+  msg "A verificar a ligação à Internet ..."
+  tem_internet || erro "sem ligação à Internet (ligue o cabo ou use: ligar-wifi) e tente de novo"
+  aviso_live
+}
+
+menu() {
+  local r lista
+  while :; do
+    echo
+    echo "${N}Instalar aplicações — ianinjapelagestao${R}"
+    echo "(VS Code, Chrome, Claude Code e Codex não vêm na ISO por licença; são descarregados agora)"
+    local i=1 a e
+    for a in vscode chrome claude codex; do
+      e=$(estado_app $a)
+      printf '  %d) %-24s %s\n' $i "${TITULO[$a]}" "${e:-não instalado}"
+      i=$((i+1))
+    done
+    echo "  5) Tudo"
+    echo "  6) Ver o estado"
+    echo "  0) Sair"
+    read -r -p "Escolha (pode indicar vários, ex.: 1 3): " r || return 0
+    lista=()
+    for i in $r; do
+      case $i in
+        1) lista+=(vscode) ;; 2) lista+=(chrome) ;; 3) lista+=(claude) ;; 4) lista+=(codex) ;;
+        5) lista=(vscode chrome claude codex); break ;;
+        6) echo; listar; continue 2 ;;
+        0) return 0 ;;
+        *) echo "Opção inválida: $i"; continue 2 ;;
+      esac
+    done
+    [ ${#lista[@]} -gt 0 ] || continue
+    [ -n "${TMPD:-}" ] || preparar
+    instalar "${lista[@]}"
+  done
+}
+
+# ======================================================================== principal
+apps=()
+lista_estado=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    -h|--help|--ajuda) uso 0 ;;
+    -l|--listar|--estado) lista_estado=1 ;;
+    -f|--forcar) FORCAR=1 ;;
+    -s|--sim) SIM=1 ;;
+    --janela) JANELA=1 ;;
+    vscode|code) apps+=(vscode) ;;
+    chrome|google-chrome) apps+=(chrome) ;;
+    claude|claude-code) apps+=(claude) ;;
+    codex) apps+=(codex) ;;
+    tudo|todas|all) apps+=(vscode chrome claude codex) ;;
+    *) echo "$NOME: opção ou aplicação desconhecida: $1" >&2; uso 1 ;;
+  esac
+  shift
+done
+
+if [ $lista_estado = 1 ]; then listar; exit 0; fi
+
+rc=0
+if [ ${#apps[@]} -eq 0 ]; then
+  [ -t 0 ] || uso 1
+  menu || rc=$?
+else
+  # sem repetidos, pela ordem dada
+  mapfile -t apps < <(printf '%s\n' "${apps[@]}" | awk '!v[$0]++')
+  preparar
+  instalar "${apps[@]}" || rc=$?
+fi
+if [ $JANELA = 1 ]; then
+  echo
+  read -r -p "Prima Enter para fechar esta janela. " _ || true
+fi
+exit $rc

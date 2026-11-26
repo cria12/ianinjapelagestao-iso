@@ -1,0 +1,14 @@
+# F8e — rede (bloco 8): NetworkManager + applet, wpa_supplicant com D-Bus. Ver scripts/apps/decisoes-08.txt.
+# página                              tipo     blocos  # motivo
+blfs/general/newt                     replace  1       # sem --with-gpm-support (o GPM não está instalado: rato na consola desnecessário para o nmtui)
+blfs/gnome/gcr                        replace  2       # -D introspection=false: o GIR gera também os .vapi, que exigem o Vala (não instalado); o libnma só usa a API C
+blfs/gnome/gcr                        skip     3       # documentação da API precisa do GTK-Doc (não instalado)
+blfs/basicnet/networkmanager          replace  2       # + -D vapi=false (sem Vala) e -D tests=no (testes precisam de sessão D-Bus/gráfica; não se compilam)
+blfs/basicnet/networkmanager          skip     5       # documentação HTML da API (libnm) — poupa espaço na ISO; ficam as páginas man
+blfs/basicnet/networkmanager          replace  6       # NetworkManager.conf com ">" (o ">>" do livro duplicaria [main] se o passo fosse repetido)
+blfs/basicnet/networkmanager          skip     8       # dhcp=dhcpcd: usa-se o cliente DHCP interno do NetworkManager (por omissão; ver decisoes-08.txt)
+blfs/basicnet/networkmanager          skip     9       # dns=none: o NetworkManager passa a escrever o /etc/resolv.conf (antes era o dhcpcd)
+blfs/basicnet/networkmanager          replace  10      # <username> = ninja; regra polkit: grupo netdev OU sessão local ativa
+blfs/basicnet/networkmanager          skip     11      # make install-networkmanager corre no passo nm-bootscript (função bootscripts)
+blfs/basicnet/libnma                  replace  1       # -D libnma_gtk4=false (GTK4 não instalado) e -D vapi=false (sem Vala)
+blfs/basicnet/network-manager-applet  replace  1       # + -D wwan=false (ModemManager não instalado, como explica o livro)

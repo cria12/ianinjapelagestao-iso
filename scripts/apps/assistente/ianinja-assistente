@@ -1,0 +1,18 @@
+#!/bin/bash
+# /usr/sbin/ianinja-assistente — Assistente de configuração do ianinjapelagestao (conta do utilizador)
+#   sudo ianinja-assistente --texto           criar a conta na consola (modo de texto, nível 3)
+#   ianinja-assistente --estado               ativo / configurado / desligado (e porquê)
+#   sudo ianinja-assistente --repor           recuperação: volta a mostrar o assistente no próximo
+#                                             ecrã de entrada, desbloqueia e mostra o ninja e
+#                                             desliga o autologin (as contas criadas ficam)
+#   sudo ianinja-assistente --sem-autologin   desliga o início de sessão automático
+#   ianinja-assistente --verificar            teste sem ecrã (GTK, LightDM, CSS, validação)
+# Desligar num arranque: ianinja.assistente=0 na linha do kernel (ou nas cadeias OEM do SMBIOS).
+S=/usr/share/ianinja-assistente
+case "${1:-}" in
+  --estado)        exec /usr/bin/python3 -I $S/contas.py estado ;;
+  --repor)         exec /usr/bin/python3 -I $S/contas.py repor ;;
+  --sem-autologin) exec /usr/bin/python3 -I $S/contas.py sem-autologin ;;
+  --texto|--verificar|--janela) exec /usr/bin/python3 -I $S/assistente.py "$@" ;;
+  *) sed -n '2,10s/^# \{0,1\}//p' "$0"; exit 2 ;;
+esac

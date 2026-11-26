@@ -1,0 +1,138 @@
+/* Assistente de configuração — estilo coerente com o WhiteSur-Light, com a Loja
+   (scripts/apps/loja/estilo.css) e com o ecrã de entrada (cartão branco translúcido,
+   cantos redondos, azul de destaque). Só propriedades de CSS do GTK 3. */
+@define-color assist_texto #1d1d1f;
+@define-color assist_texto2 #6e6e73;
+@define-color assist_borda rgba(0, 0, 0, 0.10);
+@define-color assist_azul #0a7cff;
+@define-color assist_azul_escuro #0062cc;
+@define-color assist_vermelho #d70015;
+
+.assist-janela { background-color: #dfe6f2; }
+
+.assist-cartao {
+  background-color: rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 16px 48px rgba(30, 30, 60, 0.25);
+  padding: 30px 40px 26px 40px;
+  color: @assist_texto;
+}
+.assist-cartao label { color: @assist_texto; }
+
+.assist-titulo { font-size: 1.95em; font-weight: 800; }
+.assist-subtitulo { font-size: 1.08em; }
+.assist-cartao label.assist-dim, .assist-dim { color: @assist_texto2; }
+.assist-pequeno { font-size: 0.88em; }
+.assist-rotulo { font-weight: 600; font-size: 0.95em; }
+.assist-cartao label.assist-erro, .assist-erro { color: @assist_vermelho; font-size: 0.86em; }
+.assist-cartao label.assist-ok, .assist-ok { color: #1f8a3b; font-size: 0.86em; }
+
+.assist-cartao entry {
+  border-radius: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  background-color: #ffffff;
+  border: 1px solid @assist_borda;
+  box-shadow: none;
+}
+.assist-cartao entry:focus { border-color: @assist_azul; box-shadow: 0 0 0 3px rgba(10, 124, 255, 0.18); }
+.assist-cartao entry.assist-invalido { border-color: rgba(215, 0, 21, 0.55); }
+.assist-cartao combobox button { border-radius: 10px; min-height: 32px; }
+
+/* indicador de passos (pontos) */
+.assist-ponto { min-width: 8px; min-height: 8px; border-radius: 4px; background-color: rgba(0, 0, 0, 0.14); }
+.assist-ponto.assist-ponto-atual { min-width: 22px; background-color: @assist_azul; }
+.assist-ponto.assist-ponto-feito { background-color: rgba(10, 124, 255, 0.45); }
+
+/* força da senha: 4 segmentos */
+.assist-forca { min-height: 5px; min-width: 40px; border-radius: 3px; background-color: rgba(0, 0, 0, 0.10); }
+.assist-forca.nivel-1 { background-color: #ff3b30; }
+.assist-forca.nivel-2 { background-color: #ff9500; }
+.assist-forca.nivel-3 { background-color: #34c759; }
+.assist-forca.nivel-4 { background-color: #1f9e48; }
+
+button.assist-principal {
+  border-radius: 999px;
+  padding: 6px 26px;
+  min-height: 26px;
+  font-weight: 700;
+  background-image: none;
+  background-color: @assist_azul;
+  color: #ffffff;
+  border: none;
+  box-shadow: none;
+}
+button.assist-principal:hover { background-color: @assist_azul_escuro; }
+button.assist-principal:disabled { background-color: rgba(10, 124, 255, 0.35); color: rgba(255, 255, 255, 0.9); }
+button.assist-principal label { color: inherit; }
+button.assist-secundario {
+  border-radius: 999px;
+  padding: 6px 20px;
+  min-height: 26px;
+  background-image: none;
+  background-color: rgba(0, 0, 0, 0.06);
+  color: @assist_texto;
+  border: none;
+  box-shadow: none;
+}
+button.assist-secundario:hover { background-color: rgba(0, 0, 0, 0.10); }
+button.assist-ligacao {
+  background-image: none;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  color: @assist_azul;
+  padding: 4px 10px;
+}
+button.assist-ligacao label { color: @assist_azul; font-weight: 600; }
+button.assist-ligacao:hover label { color: @assist_azul_escuro; }
+
+.assist-cartao checkbutton label { color: @assist_texto; }
+
+.assist-resumo { background-color: rgba(0, 0, 0, 0.035); border-radius: 14px; padding: 6px 16px; }
+.assist-resumo-chave { color: @assist_texto2; }
+.assist-resumo-valor { font-weight: 600; }
+
+.assist-aviso { background-color: #fff4d6; border-radius: 12px; border: 1px solid #f2d27a; padding: 10px 14px; }
+.assist-cartao .assist-aviso label { color: #5c4300; }
+.assist-falha { background-color: #ffe9e7; border-radius: 12px; border: 1px solid #f5b5ae; padding: 10px 14px; }
+.assist-cartao .assist-falha label { color: #8a1010; }
+
+/* onde guardar os dados: cartões de escolha única */
+radiobutton.assist-opcao {
+  background-color: #ffffff;
+  border: 1px solid @assist_borda;
+  border-radius: 14px;
+  padding: 10px 14px;
+}
+radiobutton.assist-opcao:hover { border-color: rgba(10, 124, 255, 0.45); }
+radiobutton.assist-opcao:checked { border-color: @assist_azul; background-color: #f0f6ff; }
+radiobutton.assist-opcao:focus { box-shadow: 0 0 0 3px rgba(10, 124, 255, 0.30); }
+radiobutton.assist-opcao radio { margin-right: 10px; }
+.assist-opcao-titulo { font-weight: 700; }
+.assist-cartao label.assist-etiqueta {
+  background-color: rgba(10, 124, 255, 0.12); color: @assist_azul_escuro;
+  border-radius: 999px; padding: 1px 9px; font-size: 0.80em; font-weight: 700;
+}
+.assist-cartao label.assist-etiqueta-perigo {
+  background-color: rgba(215, 0, 21, 0.12); color: @assist_vermelho;
+  border-radius: 999px; padding: 1px 9px; font-size: 0.80em; font-weight: 700;
+}
+.assist-perigo { background-color: #ffe9e7; border-radius: 12px; border: 1px solid #f08a80; padding: 10px 14px; }
+.assist-cartao .assist-perigo label { color: #8a1010; }
+.assist-cartao .assist-perigo checkbutton label { color: #8a1010; font-weight: 700; }
+.assist-info { background-color: #eef4ff; border-radius: 12px; border: 1px solid #bcd3fb; padding: 10px 14px; }
+.assist-cartao .assist-info label { color: #1b3a6b; }
+.assist-cartao scale trough { min-height: 6px; border-radius: 3px; }
+.assist-cartao scale highlight { background-color: @assist_azul; border-radius: 3px; }
+.assist-cartao spinbutton { border-radius: 10px; }
+.assist-cartao progressbar trough { min-height: 10px; border-radius: 5px; background-color: rgba(0, 0, 0, 0.08); }
+.assist-cartao progressbar progress { min-height: 10px; border-radius: 5px; background-color: @assist_azul; }
+.assist-cartao progressbar text { color: @assist_texto2; font-size: 0.86em; }
+
+/* foco visível pelo teclado nos botões em comprimido */
+button.assist-principal:focus { box-shadow: 0 0 0 3px rgba(10, 124, 255, 0.35); }
+button.assist-secundario:focus, button.assist-ligacao:focus { box-shadow: 0 0 0 3px rgba(10, 124, 255, 0.25); }
+
+.assist-rodape { color: rgba(29, 29, 31, 0.70); font-size: 0.85em; }

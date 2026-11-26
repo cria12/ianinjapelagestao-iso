@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ianinjapelagestao: xfce4-appfinder 4.20 como "pesquisa rápida" (ao estilo do Spotlight),
+  aberto com Super+Espaço (xfce4-appfinder em modo compacto): janela pequena centrada, sem decoração,
+  fecha ao perder o foco, resultados ordenados pelos mais usados.
+-->
+
+<channel name="xfce4-appfinder" version="1.0">
+  <property name="always-center" type="bool" value="true"/>
+  <property name="hide-window-decorations" type="bool" value="true"/>
+  <property name="close-on-focus-lost" type="bool" value="true"/>
+  <property name="sort-by-frecency" type="bool" value="true"/>
+  <property name="single-window" type="bool" value="true"/>
+  <property name="enable-service" type="bool" value="true"/>
+  <property name="remember-category" type="bool" value="false"/>
+  <property name="item-icon-size" type="uint" value="3"/>
+</channel>

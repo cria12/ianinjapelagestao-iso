@@ -1,0 +1,18 @@
+# F8e — aplicações, bloco 5: Flatpak + Flathub e a "Loja" gráfica (dependências do BLFS).
+# Ver scripts/apps/decisoes-05.txt.
+# página                                        tipo     blocos  # motivo
+blfs/general/xdg-dbus-proxy                     replace  1       # -D man=disabled: a página de manual exige docbook-xsl (não instalado) e o xsltproc tentaria a rede
+blfs/postlfs/fuse                               skip     2       # documentação da API com Doxygen (não instalado)
+blfs/postlfs/fuse                               skip     3       # testes: venv + pip install looseversion (o chroot não tem rede) e pytest
+blfs/general/libassuan                          skip     2,4     # manual em PDF/PostScript (precisa de texlive)
+blfs/postlfs/gnupg                              replace  1       # --disable-ldap: sem OpenLDAP (e Cyrus SASL/LMDB); o Flatpak/OSTree só verifica assinaturas
+blfs/postlfs/gnupg                              skip     2,4     # manual em PDF (precisa de texlive)
+blfs/general/appstream                          replace  1       # sem subdir docs/: as páginas de manual exigem docbook-xsl (não instalado) e o meson pararia
+blfs/general/appstream                          replace  2       # ninja install sem o mv de /usr/share/doc/appstream (sem documentação não existe)
+blfs/general/json-glib                          skip     2,3     # páginas de manual (DocBook) e documentação (gi-docgen) não instalados
+blfs/general/python-modules@pyparsing           skip     3       # testes: venv + pip install railroad-diagrams matplotlib (precisa de rede)
+blfs/multimedia/pipewire                        replace  1       # -D systemd=disabled: o libsystemd.pc do elogind não tem sd-journal (plugin do journal); sem session manager, como o livro
+blfs/x/xdg-desktop-portal                       skip     2       # testes: precisam de pytest, dbusmock e umockdev (não instalados)
+blfs/x/xdg-desktop-portal                       replace  4       # apagar só as unidades systemd deste pacote (o livro apaga /usr/lib/systemd inteiro, onde está o xfconfd.service)
+blfs/x/xdg-desktop-portal-gtk                   replace  1       # -D wallpaper=disabled explícito (precisa do gnome-desktop, que arrastaria o GTK4); settings/appchooser/lockdown ativos
+blfs/x/xdg-desktop-portal-gtk                   replace  3       # apagar só as unidades systemd deste pacote (idem)

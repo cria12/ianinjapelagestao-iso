@@ -1,0 +1,9 @@
+#!/bin/sh
+# mostrar-atalho — chamado pela regra udev 90-ianinja-nvidia.rules quando aparece uma placa gráfica
+# NVIDIA: põe o atalho "Instalar driver NVIDIA" no menu (sem placa NVIDIA o atalho não existe).
+f=/usr/share/instalar-driver-nvidia/instalar-driver-nvidia.desktop
+d=/usr/share/applications/instalar-driver-nvidia.desktop
+[ -f "$f" ] || exit 0
+[ -f "$d" ] && exit 0
+cp "$f" "$d" 2> /dev/null && chmod 644 "$d" 2> /dev/null
+exit 0

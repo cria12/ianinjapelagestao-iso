@@ -1,0 +1,10 @@
+# F8d — interface gráfica, bloco 2: GTK3 e dependências (inclui Rust para o librsvg). Ver scripts/f08d-gui.sh.
+blfs/x/pango                    skip     2       # documentação da API: precisa de Gi-DocGen (não instalado)
+blfs/server/sqlite              skip     1,4     # documentação opcional (sqlite-doc-*.zip) não descarregada; também precisa de unzip (ausente)
+blfs/general/rust               skip     4,5     # test suite muito longa (+15 SBU, +7,4 GB) e com falhas conhecidas; precisa de git do repositório Rust para parte dos testes
+blfs/general/cargo-c            replace  1       # Cargo.lock descarregado no chroot (com rede) e verificado com o MD5 indicado no texto do livro
+blfs/general/nasm               skip     1,4     # documentação opcional (nasm-*-xdoc.tar.xz) não descarregada
+blfs/general/shared-mime-info   skip     1       # xdgmime (download opcional) só serve para a test suite
+blfs/x/gdk-pixbuf               skip     2       # documentação da API: precisa de Gi-DocGen (não instalado)
+blfs/x/gtk3                     replace  1       # -D man=false (sem docbook-xsl-nons as páginas de manual falham com xsltproc --nonet); x11 e wayland explícitos
+blfs/x/gtk3                     skip     5,6     # ~/.config/gtk-3.0 do utilizador: tema configurado em scripts/gui/tema

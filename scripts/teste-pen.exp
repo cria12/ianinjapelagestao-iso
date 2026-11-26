@@ -1,0 +1,123 @@
+#!/usr/bin/expect -f
+# senha do root: variável SENHA_ROOT (carregar_senhas em lib.sh, de scripts/senhas.local)
+if {![info exists env(SENHA_ROOT)]} { puts stderr "falta SENHA_ROOT"; exit 2 }
+set senha_root $env(SENHA_ROOT)
+# Teste da ISO gravada numa pen USB (modo imagem/dd) ou num disco: a ISO entra no QEMU como DISCO
+# (não como CD), só-leitura, e arranca por ela (bootindex=0).
+# Uso: teste-pen.exp <pen-bios|pen-uefi|disco-bios|disco-uefi> <iso> <log> <resultado>
+#   pen-*   : -device qemu-xhci + usb-storage (removable) -> /dev/sda, partições sda1..sda4 da
+#             ISO híbrida (a com o rótulo IANINJAPELAGESTAO é HFS+; o ISO9660 está no disco inteiro)
+#   disco-* : virtio-blk -> /dev/vda
+# Critérios (4): GRUB mostra o menu; o initramfs encontra o ISO9660 no DISCO INTEIRO e monta a
+# raiz; login root na série; Xorg e greeter a correr (o LightDM chega ao ecrã de início de sessão).
+set modo [lindex $argv 0]
+set iso  [lindex $argv 1]
+set logf [lindex $argv 2]
+set resf [lindex $argv 3]
+log_file -noappend $logf
+set res [open $resf w]
+set kvm [expr {[file exists /dev/kvm] && [file writable /dev/kvm]}]
+proc t {s} { global kvm; if {!$kvm && $s < 600} { return 600 }; return $s }
+proc criterio {nome ok} { global res; puts $res [expr {$ok ? "PASS  $nome" : "FAIL  $nome"}]; flush $res }
+proc nota {x} { global res; puts $res "INFO  $x"; flush $res }
+proc expirou {nome} {
+  global res kvm
+  if {$kvm} { puts $res "FAIL  $nome (timeout)" } else { puts $res "LENTO $nome (timeout sem KVM — não conta como falha)" }
+  close $res; exit 2
+}
+
+set cmd [list qemu-system-x86_64 -m 4096 -smp 4 -nographic -no-reboot -nic user,model=e1000 -vga std \
+         -drive if=none,id=pen,format=raw,readonly=on,file=$iso]
+# assistente de 1.º arranque desligado nos testes (ver teste-qemu.exp)
+lappend cmd -smbios type=11,value=ianinja.assistente=0
+if {[string match pen-* $modo]} {
+  lappend cmd -device qemu-xhci,id=xhci -device usb-storage,bus=xhci.0,drive=pen,removable=on,bootindex=0
+} else {
+  lappend cmd -device virtio-blk-pci,drive=pen,bootindex=0
+}
+if {[string match *-uefi $modo]} { lappend cmd -bios /usr/share/ovmf/OVMF.fd }
+if {$kvm} { lappend cmd -enable-kvm -cpu host } else { lappend cmd -cpu max,la57=off }
+
+# login root na série (como o entrar_root do teste-qemu.exp), com novas tentativas se o login
+# expirar ou for recusado.
+# ATENÇÃO: no Expect, um bloco 'expect { ... }' só é lido como lista de padrões/ações se a chaveta
+# for seguida de uma MUDANÇA DE LINHA; 'expect { "x" {} timeout {...} }' numa só linha é UM padrão
+# literal, que nunca casa e espera sempre o timeout inteiro (era a causa do "Login timed out":
+# a palavra-passe só era enviada 90 s depois do "Password:", com o login já expirado aos 60 s).
+proc entrar {} {
+  global spawn_id timeout
+  set timeout 300
+  expect {
+    "login:" {}
+    timeout { return 0 }
+  }
+  for {set k 0} {$k < 4} {incr k} {
+    if {$k > 0} { after 1000 }
+    send "root\r"
+    set timeout 90
+    expect {
+      "assword:" {}
+      timeout { continue }
+    }
+    send "$senha_root\r"
+    set timeout 150
+    set r 0
+    expect {
+      -re {\]# |\n# $} { set r 1 }
+      "Login incorrect" { exp_continue }
+      "Login timed out" { exp_continue }
+      "login:" { set r 0 }
+      timeout { return 0 }
+    }
+    if {$r} {
+      send "PS1='TST> '\r"
+      expect {
+        "TST> " { return 1 }
+        timeout { return 0 }
+      }
+    }
+    # aqui o expect acabou de ver um "login:" novo: volta a tentar
+  }
+  return 0
+}
+
+eval spawn $cmd
+
+set timeout [t 240]
+expect {
+  "ianinjapelagestao 12.4 (Live)" { criterio "GRUB mostra o menu (arranque pelo disco $modo)" 1 }
+  timeout { expirou "GRUB mostra o menu (arranque pelo disco $modo)" }
+}
+set nome "initramfs encontra o ISO9660 no disco inteiro e monta a raiz"
+set dev ""
+expect {
+  -re {volume encontrado em (/dev/[a-z0-9]+)[\r\n]} { set dev $expect_out(1,string); exp_continue }
+  "raiz overlay pronta" {
+    nota "volume encontrado em $dev"
+    criterio $nome [regexp {^/dev/(sd[a-z]+|vd[a-z]+)$} $dev]
+  }
+  "FALHA NO ARRANQUE LIVE" { criterio $nome 0; close $res; exit 1 }
+  timeout { expirou $nome }
+}
+if {[entrar]} { criterio "Login root" 1 } else { expirou "Login root" }
+send "lsblk -o NAME,SIZE,FSTYPE,LABEL 2>/dev/null || blkid; mount | grep -E 'iso9660|squashfs'\r"
+expect "TST> "
+set timeout [t 240]
+set espera [expr {$kvm ? 90 : 300}]
+send "N=$espera\r"
+expect "TST> "
+send -- {for i in $(seq $N); do { pidof Xorg || pidof X; } > /dev/null && pidof lightdm-gtk-greeter > /dev/null && break; sleep 2; done; tail -n 3 /var/log/ianinja-dm.log; if { pidof Xorg || pidof X; } > /dev/null && pidof lightdm-gtk-greeter > /dev/null; then echo "GREE""TER_OK"; else echo "GREE""TER_FALTA"; fi}
+send "\r"
+expect {
+  "GREETER_OK" { criterio "Xorg e greeter do LightDM a correr" 1 }
+  "GREETER_FALTA" { if {$kvm} { criterio "Xorg e greeter do LightDM a correr" 0 } else { expirou "Xorg e greeter do LightDM a correr" } }
+  timeout { expirou "Xorg e greeter do LightDM a correr" }
+}
+expect "TST> "
+set timeout [t 180]
+send "poweroff\r"
+expect {
+  eof {}
+  timeout {}
+}
+close $res

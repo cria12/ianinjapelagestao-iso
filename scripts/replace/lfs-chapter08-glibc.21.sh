@@ -1,0 +1,1 @@
+ln -sfv /usr/share/zoneinfo/Europe/Lisbon /etc/localtime

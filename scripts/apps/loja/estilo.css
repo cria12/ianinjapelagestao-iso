@@ -1,0 +1,106 @@
+/* Loja — estilo próprio, coerente com o tema WhiteSur-Light (cinzentos claros, azul de destaque,
+   cantos arredondados). Só usa propriedades de CSS do GTK 3. */
+@define-color loja_fundo #f5f5f7;
+@define-color loja_lateral #ebebee;
+@define-color loja_cartao #ffffff;
+@define-color loja_borda rgba(0, 0, 0, 0.08);
+@define-color loja_texto #1d1d1f;
+@define-color loja_texto2 #6e6e73;
+@define-color loja_azul #0a7cff;
+@define-color loja_azul_escuro #0062cc;
+
+.loja-janela, .loja-conteudo { background-color: @loja_fundo; color: @loja_texto; }
+
+.loja-lateral { background-color: @loja_lateral; border-right: 1px solid @loja_borda; }
+.loja-lateral list, .loja-lateral row { background-color: transparent; }
+.loja-lateral row { border-radius: 8px; margin: 1px 10px; padding: 6px 8px; }
+.loja-lateral row:selected { background-color: rgba(0, 0, 0, 0.09); color: @loja_texto; }
+.loja-lateral row:selected image { color: @loja_azul; }
+.loja-lateral row:hover:not(:selected) { background-color: rgba(0, 0, 0, 0.04); }
+.loja-lateral-seccao { color: @loja_texto2; font-size: 0.82em; font-weight: bold; margin: 14px 20px 4px 20px; }
+.loja-lateral entry { border-radius: 8px; margin: 12px 10px 8px 10px; min-height: 30px; }
+
+.loja-titulo { font-size: 2.0em; font-weight: 800; color: @loja_texto; }
+.loja-subtitulo { font-size: 1.25em; font-weight: 700; color: @loja_texto; }
+.loja-dim { color: @loja_texto2; }
+.loja-pequeno { font-size: 0.9em; }
+
+.loja-cartao {
+  background-color: @loja_cartao;
+  border-radius: 14px;
+  border: 1px solid @loja_borda;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 14px;
+}
+.loja-cartao-clicavel:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); }
+.loja-cartao-nome { font-weight: 700; font-size: 1.05em; }
+
+.loja-hero {
+  border-radius: 18px;
+  padding: 28px 32px;
+  background-image: linear-gradient(120deg, #2b8cff, #6a5cff 55%, #c55cff);
+  color: #ffffff;
+}
+.loja-hero label { color: #ffffff; }
+.loja-hero-titulo { font-size: 2.2em; font-weight: 800; }
+.loja-hero-texto { font-size: 1.1em; }
+
+.loja-categoria {
+  border-radius: 14px;
+  padding: 16px;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+}
+.loja-categoria label { color: #ffffff; font-weight: 700; font-size: 1.1em; }
+.loja-categoria image { color: #ffffff; }
+.loja-cat-0 { background-image: linear-gradient(135deg, #34aadc, #007aff); }
+.loja-cat-1 { background-image: linear-gradient(135deg, #ff5e7e, #ff2d55); }
+.loja-cat-2 { background-image: linear-gradient(135deg, #a95cff, #5856d6); }
+.loja-cat-3 { background-image: linear-gradient(135deg, #ffb340, #ff9500); }
+.loja-cat-4 { background-image: linear-gradient(135deg, #4cd964, #28a745); }
+.loja-cat-5 { background-image: linear-gradient(135deg, #8e8e93, #5a5a5f); }
+
+/* botão "Obter" em forma de comprimido, como numa loja de aplicações */
+button.loja-obter {
+  border-radius: 999px;
+  padding: 3px 16px;
+  min-height: 24px;
+  font-weight: 700;
+  background-image: none;
+  background-color: rgba(10, 124, 255, 0.10);
+  color: @loja_azul;
+  border: none;
+  box-shadow: none;
+}
+button.loja-obter:hover { background-color: rgba(10, 124, 255, 0.18); }
+button.loja-principal {
+  border-radius: 999px;
+  padding: 5px 22px;
+  font-weight: 700;
+  background-image: none;
+  background-color: @loja_azul;
+  color: #ffffff;
+  border: none;
+  box-shadow: none;
+}
+button.loja-principal:hover { background-color: @loja_azul_escuro; }
+button.loja-principal label, button.loja-obter label { color: inherit; }
+button.loja-perigo {
+  border-radius: 999px;
+  padding: 5px 18px;
+  background-image: none;
+  background-color: rgba(255, 59, 48, 0.10);
+  color: #d70015;
+  border: none;
+  box-shadow: none;
+}
+button.loja-voltar { border-radius: 8px; }
+
+progressbar.loja-progresso trough { min-height: 6px; border-radius: 3px; background-color: rgba(0, 0, 0, 0.08); }
+progressbar.loja-progresso progress { min-height: 6px; border-radius: 3px; background-color: @loja_azul; background-image: none; }
+
+.loja-captura { border-radius: 10px; border: 1px solid @loja_borda; }
+.loja-info-valor { font-weight: 700; }
+.loja-aviso { background-color: #fff4d6; border-radius: 12px; border: 1px solid #f2d27a; padding: 10px 14px; }
+.loja-aviso label { color: #5c4300; }

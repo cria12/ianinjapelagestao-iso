@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Loja
+GenericName=Loja de aplicações
+Comment=Procure, instale e atualize aplicações do Flathub (Firefox, Spotify, VLC, GIMP, Steam...)
+Exec=loja
+Icon=loja
+Terminal=false
+StartupNotify=true
+StartupWMClass=loja
+Categories=System;PackageManager;GTK;
+Keywords=loja;aplicações;instalar;flatpak;flathub;programas;software;store;

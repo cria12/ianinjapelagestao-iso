@@ -1,0 +1,103 @@
+#!/bin/sh
+########################################################################
+# Begin zram
+#
+# Description : Swap comprimida em RAM (zram) para o ianinjapelagestao.
+#               Tamanho: 50 % da RAM (máximo 16 GiB), compressor zstd,
+#               prioridade 100 (usada antes de qualquer swap em disco).
+#               Valores alteráveis em /etc/sysconfig/zram.
+#
+# Authors     : ianinjapelagestao (estilo dos bootscripts do LFS)
+#
+# Version     : LFS 12.4
+#
+########################################################################
+
+### BEGIN INIT INFO
+# Provides:            zram
+# Required-Start:      mountvirtfs
+# Should-Start:        modules udev
+# Required-Stop:
+# Should-Stop:
+# Default-Start:       S
+# Default-Stop:        0 6
+# Short-Description:   Ativa swap comprimida em RAM (zram).
+# Description:         Cria /dev/zram0 com 50 % da RAM (máx. 16 GiB),
+#                      compressor zstd, e ativa-o como swap com
+#                      prioridade 100.
+# X-LFS-Provided-By:   ianinjapelagestao
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+ZRAM_PERCENTAGEM=50
+ZRAM_MAX_MIB=16384
+ZRAM_ALGORITMO=zstd
+ZRAM_PRIORIDADE=100
+[ -r /etc/sysconfig/zram ] && . /etc/sysconfig/zram
+
+SYS=/sys/block/zram0
+DEV=/dev/zram0
+
+zram_ativo() { grep -q "^${DEV} " /proc/swaps 2>/dev/null; }
+
+case "${1}" in
+   start)
+      log_info_msg "A ativar swap comprimida em RAM (zram)..."
+      [ -e ${SYS} ] || modprobe zram num_devices=1 2>/dev/null
+      if [ ! -e ${SYS} ]; then
+         log_warning_msg " (kernel sem zram)"
+         exit 0
+      fi
+      if zram_ativo; then
+         log_success_msg2
+         exit 0
+      fi
+      mem_kib=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+      tam_mib=$(( mem_kib / 1024 * ZRAM_PERCENTAGEM / 100 ))
+      [ ${tam_mib} -gt ${ZRAM_MAX_MIB} ] && tam_mib=${ZRAM_MAX_MIB}
+      [ -b ${DEV} ] || mknod ${DEV} b $(sed 's/:/ /' ${SYS}/dev)
+      # um disksize anterior impede mudar o compressor: limpar primeiro
+      echo 1 > ${SYS}/reset 2>/dev/null
+      # se o kernel não tiver o compressor pedido, fica o compressor por omissão
+      echo ${ZRAM_ALGORITMO} > ${SYS}/comp_algorithm 2>/dev/null
+      echo ${tam_mib}M > ${SYS}/disksize &&
+      mkswap -L zram0 ${DEV} > /dev/null &&
+      swapon -p ${ZRAM_PRIORIDADE} ${DEV}
+      evaluate_retval
+      ;;
+
+   stop)
+      log_info_msg "A desativar a swap zram..."
+      if [ -e ${SYS} ]; then
+         if zram_ativo; then swapoff ${DEV}; fi
+         echo 1 > ${SYS}/reset 2>/dev/null
+      fi
+      log_success_msg2
+      ;;
+
+   restart)
+      ${0} stop
+      sleep 1
+      ${0} start
+      ;;
+
+   status)
+      if zram_ativo; then
+         log_success_msg "zram ativo:"
+         grep -E '^(Filename|/dev/zram)' /proc/swaps
+         zramctl 2>/dev/null
+      else
+         log_warning_msg "zram inativo"
+      fi
+      ;;
+
+   *)
+      echo "Usage: ${0} {start|stop|restart|status}"
+      exit 1
+      ;;
+esac
+
+exit 0
+
+# End zram

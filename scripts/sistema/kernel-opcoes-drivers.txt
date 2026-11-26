@@ -1,0 +1,125 @@
+# Opções do kernel para suporte "de distribuição" a hardware (lidas pelo scripts/f07-kernel.sh).
+# A base é a configuração do pacote linux 6.16.1.arch1-1 do Arch Linux (fixada por commit e SHA-256
+# em f07-kernel.sh): quase todos os drivers ficam como módulos (=m), carregados pelo udev.
+# Aqui só se corrige o que não serve a esta ISO e se embute (=y) tudo o que o arranque live precisa,
+# porque o initramfs NÃO leva módulos. Formato: OPÇÃO=y|n ('#' e linhas vazias são ignoradas).
+# Justificações em docs/DECISOES.md ("Kernel: configuração base do Arch Linux e drivers em módulos").
+
+# --- Sem informação de depuração pesada (DWARF/BTF) nem cabeçalhos embutidos
+DEBUG_INFO_NONE=y
+DEBUG_INFO_DWARF5=n
+DEBUG_INFO_BTF=n
+IKHEADERS=n
+# versão do kernel exatamente 6.16.1 (os scripts e o /lib/modules usam esse nome)
+LOCALVERSION_AUTO=n
+
+# --- Módulos: sem assinatura (nem chave) e comprimidos com zstd (o kmod 34.2 do LFS tem +ZSTD)
+MODULES=y
+MODULE_UNLOAD=y
+MODULE_SIG=n
+# o LSM lockdown faz "select MODULE_SIG"; só tem efeito com Secure Boot e chaves próprias
+SECURITY_LOCKDOWN_LSM=n
+MODULE_COMPRESS_ZSTD=y
+MODULE_COMPRESS_ALL=y
+MODULE_DECOMPRESS=y
+
+# --- Firmware: carregador com suporte a ficheiros .xz e .zst (o linux-firmware é instalado em .xz)
+FW_LOADER=y
+FW_LOADER_COMPRESS=y
+FW_LOADER_COMPRESS_XZ=y
+FW_LOADER_COMPRESS_ZSTD=y
+MICROCODE=y
+
+# --- Arranque live sem módulos: ISO, SquashFS, overlay, loop, ext4, FAT
+BLK_DEV_LOOP=y
+ISO9660_FS=y
+JOLIET=y
+ZISOFS=y
+SQUASHFS=y
+SQUASHFS_XZ=y
+SQUASHFS_ZSTD=y
+OVERLAY_FS=y
+EXT4_FS=y
+FAT_FS=y
+VFAT_FS=y
+MSDOS_FS=y
+NLS_CODEPAGE_437=y
+NLS_ISO8859_1=y
+NLS_UTF8=y
+DEVTMPFS=y
+DEVTMPFS_MOUNT=y
+
+# --- Controladores de disco/CD: SATA/AHCI, IDE (PIIX), NVMe, SCSI disco e CD-ROM
+ATA=y
+SATA_AHCI=y
+ATA_PIIX=y
+ATA_GENERIC=y
+PATA_ACPI=y
+SCSI=y
+BLK_DEV_SD=y
+BLK_DEV_SR=y
+NVME_CORE=y
+BLK_DEV_NVME=y
+
+# --- Máquinas virtuais: virtio (QEMU/KVM), Hyper-V (VMBus + disco/teclado), VMware PVSCSI
+VIRTIO=y
+VIRTIO_PCI=y
+VIRTIO_BLK=y
+SCSI_VIRTIO=y
+VIRTIO_NET=y
+VIRTIO_CONSOLE=y
+HYPERV=y
+HYPERV_STORAGE=y
+# HYPERV_STORAGE embutido exige SCSI_FC_ATTRS != m; E1000E embutido exige PTP_1588_CLOCK != m
+SCSI_FC_ATTRS=y
+PTP_1588_CLOCK=y
+HYPERV_KEYBOARD=y
+VMWARE_PVSCSI=y
+
+# --- USB: controladores xHCI/EHCI/OHCI/UHCI (incl. a parte PCI), pens USB (usb-storage + UAS)
+USB_SUPPORT=y
+USB=y
+USB_PCI=y
+USB_XHCI_HCD=y
+USB_XHCI_PCI=y
+USB_EHCI_HCD=y
+USB_EHCI_PCI=y
+USB_OHCI_HCD=y
+USB_OHCI_HCD_PCI=y
+USB_UHCI_HCD=y
+USB_STORAGE=y
+USB_UAS=y
+
+# --- Cartões SD/MMC (PCI/ACPI e leitores Realtek PCI)
+MMC=y
+MMC_BLOCK=y
+# MMC_BLOCK depende de "RPMB || !RPMB": com RPMB=m só podia ser módulo
+RPMB=y
+MMC_SDHCI=y
+MMC_SDHCI_PCI=y
+MMC_SDHCI_ACPI=y
+MISC_RTSX_PCI=y
+MMC_REALTEK_PCI=y
+
+# --- Teclado (USB HID e PS/2), consola série 8250, ecrã EFI/simpledrm
+HID=y
+HID_GENERIC=y
+USB_HID=y
+SERIO=y
+SERIO_I8042=y
+KEYBOARD_ATKBD=y
+SERIAL_8250=y
+SERIAL_8250_CONSOLE=y
+SERIAL_8250_PCI=y
+FB=y
+FB_EFI=y
+DRM=y
+DRM_SIMPLEDRM=y
+SYSFB_SIMPLEFB=y
+FRAMEBUFFER_CONSOLE=y
+
+# --- Escolhas exclusivas (choice) da configuração do Arch que contrariam kernel-opcoes-ia.txt:
+#     desligar explicitamente a alternativa do Arch para que a nossa fique selecionada
+PREEMPT=n
+PREEMPT_NONE=n
+PREEMPT_LAZY=n

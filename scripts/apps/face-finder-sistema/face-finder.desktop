@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Face Finder
+GenericName=Deteção de rostos
+Comment=Encontra e marca rostos em fotografias (não identifica pessoas)
+Exec=face-finder-gui
+Icon=face-finder
+Terminal=false
+Categories=Graphics;Viewer;Education;Science;ImageProcessing;
+Keywords=rostos;caras;faces;deteção;opencv;fotografias;visão;
+StartupNotify=true

@@ -1,0 +1,12 @@
+# F8e — aplicações, bloco 1: dependências de execução do VS Code, Google Chrome, Claude Code e Codex
+# (NSPR/NSS, GnuTLS, CUPS só para a libcups, libsecret, xdg-utils). Ver scripts/apps/decisoes-01.txt.
+# página                        tipo     blocos  # motivo
+blfs/postlfs/nss                skip     2       # testes (all.sh) precisam de rede e de um nome de máquina resolúvel; o chroot não tem rede
+blfs/gnome/libsecret            replace  1       # sem Vala (VAPI) nem docbook-xsl (páginas de manual): + -D vapi=false -D manpage=false
+blfs/gnome/libsecret            skip     2       # documentação da API precisa de gi-docgen (não instalado)
+blfs/xsoft/xdg-utils            replace  1       # sem xmlto/DocBook: textos de ajuda gerados do XML com sed e só "make scripts" (sem man/html)
+blfs/pst/cups                   replace  1       # utilizador lp criado só se não existir (permite repetir o passo)
+blfs/pst/cups                   replace  2       # grupo lpadmin criado só se não existir
+blfs/pst/cups                   replace  3       # <username> -> ninja (utilizador do sistema, administra impressoras)
+blfs/pst/cups                   replace  4       # o Firefox não existe: o atalho "Gerir impressão" abre http://localhost:631 com xdg-open
+blfs/pst/cups                   skip     11      # make install-cups corre no passo cups-bootscript (função bootscripts); depois cups_sem_arranque tira os S35cups

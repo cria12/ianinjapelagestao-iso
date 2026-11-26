@@ -1,0 +1,224 @@
+#!/bin/bash
+########################################################################
+# /usr/sbin/ianinja-dm — arranque vigiado do gestor de sessões (LightDM)
+#
+# Lançado pelo init no nível 5 (/etc/inittab: dm:5:respawn:/usr/sbin/ianinja-dm),
+# em vez do /etc/rc.d/init.d/xdm do BLFS, que fazia exec do LightDM diretamente.
+# Lê a mesma configuração (/etc/sysconfig/xdm: DISPLAY_MANAGER e DM_OPTIONS).
+#
+# O LightDM sem logind sai com erro quando o servidor X (ou o greeter) não arranca
+# (seat0 tem exit-on-failure=true). Cada saída antes de o ambiente gráfico aparecer
+# conta como falha, e o ianinja-dm sobe de nível, com configurações do Xorg cada vez
+# mais simples (em /etc/X11/xorg.conf.d/90-ianinja-recurso.conf, apagado no início de
+# cada arranque):
+#   nível 0  configuração automática (2 tentativas)
+#   nível 1  driver modesetting sem aceleração (AccelMethod none: sem glamor/OpenGL,
+#            a causa mais comum de falha em placas recentes — NVIDIA com nouveau, etc.)
+#   nível 2+ uma placa de cada vez (Option "kmsdev"), primeiro as do firmware
+#            (simpledrm: a imagem que o UEFI/BIOS deixou), sem aceleração
+# Se não houver placa nenhuma com driver KMS, ou se todos os níveis falharem, muda para
+# a consola tty1 com um aviso a sugerir o "modo gráfico de compatibilidade" do GRUB e
+# fica à espera (sem gastar CPU), para o init não voltar a lançar o LightDM.
+#
+# Uso manual: ianinja-dm repor   (apaga as falhas e volta a tentar desde o nível 0)
+#             ianinja-dm estado  (nível atual, placas e registo)
+# Teste: ianinja-dm.simular-falha=N na linha do kernel faz as N primeiras tentativas
+#        usarem um driver do Xorg inexistente (o X falha de verdade).
+########################################################################
+D=/run/ianinja-dm
+LOG=/var/log/ianinja-dm.log
+CONF=/etc/X11/xorg.conf.d/90-ianinja-recurso.conf
+mkdir -p $D
+
+log() { echo "$(date '+%F %T') $*" >> $LOG; }
+
+# placas com driver KMS e saídas (cardN-*), as do firmware primeiro: "cardN driver"
+placas() {
+  local c n d
+  for c in /sys/class/drm/card[0-9]*; do
+    n=${c##*/}
+    case $n in *-*) continue ;; esac
+    [ -e "$c/device/driver" ] || continue
+    ls -d /sys/class/drm/$n-* > /dev/null 2>&1 || continue      # sem saídas (ex.: vgem)
+    d=$(basename "$(readlink -f "$c/device/driver")")
+    case $d in simple-framebuffer|simpledrm|efi*|vesa*|ofdrm) echo "0 $n $d" ;; *) echo "1 $n $d" ;; esac
+  done | sort -k1,1n -k2,2V | cut -d' ' -f2-
+}
+
+case "${1:-}" in
+  repor)
+    rm -f $D/falhas $D/nivel $D/tentativas $D/desistiu $D/motivo $CONF
+    [ -s $D/espera.pid ] && kill "$(cat $D/espera.pid)" 2>/dev/null
+    rm -f $D/espera.pid
+    log "repor: falhas apagadas; o init volta a lançar o gestor de sessões (nível 0)"
+    echo "ianinja-dm: falhas apagadas; a interface gráfica vai ser tentada outra vez (Ctrl+Alt+F7)."
+    exit 0 ;;
+  estado)
+    echo "nível: $(cat $D/nivel 2>/dev/null || echo 0)  falhas no nível: $(cat $D/falhas 2>/dev/null || echo 0)  tentativas: $(cat $D/tentativas 2>/dev/null || echo 0)"
+    [ -e $D/desistiu ] && echo "desistiu (consola de texto): $(cat $D/motivo 2>/dev/null)"
+    echo "placas KMS:"; placas | sed 's/^/  /'
+    [ -f $CONF ] && { echo "configuração de recurso ($CONF):"; sed 's/^/  /' $CONF; }
+    tail -n 15 $LOG 2>/dev/null
+    exit 0 ;;
+esac
+
+[ -r /etc/sysconfig/xdm ] && . /etc/sysconfig/xdm
+DISPLAY_MANAGER=${DISPLAY_MANAGER:-/usr/bin/lightdm}
+
+# primeira vez neste arranque: apaga a configuração de recurso de um arranque anterior
+# (com persistência o /etc sobrevive; a placa ou o modo de arranque podem ser outros)
+if [ ! -e $D/arranque ]; then
+  touch $D/arranque
+  [ -f $CONF ] && rm -f $CONF && log "configuração de recurso de um arranque anterior apagada"
+fi
+
+aviso() {
+  cat << EOF
+
+ ==========================================================================
+  ianinjapelagestao: a interface gráfica não arrancou.
+  ($1)
+
+  A placa gráfica deste computador pode não funcionar com o driver normal.
+  Reinicie o computador (Ctrl+Alt+Del) e escolha no menu do GRUB:
+
+     ianinjapelagestao 12.4 (Live - modo gráfico de compatibilidade)
+
+  Entretanto pode usar o sistema em modo de texto: entre abaixo como
+  ninja ou root (senhas definidas na construção da ISO).
+  Registos: /var/log/Xorg.0.log  /var/log/lightdm/  $LOG
+  Tentar outra vez a interface gráfica: sudo ianinja-dm repor
+ ==========================================================================
+
+EOF
+}
+
+desistir() {
+  touch $D/desistiu
+  echo "$1" > $D/motivo
+  rm -f $CONF
+  log "a desistir da interface gráfica: $1; aviso na tty1"
+  # volta ao modo de texto na tty1, mostra o aviso e faz o agetty da tty1 (--noclear)
+  # voltar a escrever o pedido de login por baixo dele
+  chvt 1 2>/dev/null
+  aviso "$1" > /dev/tty1 2>/dev/null
+  pkill -t tty1 -x agetty 2>/dev/null
+  # fica à espera (o init não volta a lançar enquanto este processo existir);
+  # "ianinja-dm repor" mata a espera e o init lança outra vez
+  trap 'kill "$(cat $D/espera.pid 2>/dev/null)" 2>/dev/null; rm -f $D/espera.pid; exit 0' TERM INT HUP
+  sleep infinity &
+  echo $! > $D/espera.pid
+  wait $!
+  rm -f $D/espera.pid
+  exit 0
+}
+
+[ -e $D/desistiu ] && desistir "$(cat $D/motivo 2>/dev/null)"
+
+nivel=$(cat $D/nivel 2>/dev/null); nivel=${nivel:-0}
+falhas=$(cat $D/falhas 2>/dev/null); falhas=${falhas:-0}
+tent=$(cat $D/tentativas 2>/dev/null); tent=${tent:-0}
+
+# há alguma placa com driver KMS? (o udev já assentou no rcS; espera ainda até 10 s)
+for i in 1 2 3 4 5 6 7 8 9 10; do [ -n "$(placas)" ] && break; sleep 1; done
+lista=$(placas)
+if [ -z "$lista" ]; then
+  desistir "nenhuma placa gráfica com driver KMS em /dev/dri: o driver da placa falhou ou não existe"
+fi
+n_placas=$(echo "$lista" | wc -l)
+
+# configuração do Xorg para o nível atual
+escrever_conf() {
+  local card=""
+  if [ $nivel = 0 ]; then rm -f $CONF; return 0; fi
+  if [ $nivel -ge 2 ]; then
+    card=$(echo "$lista" | sed -n "$((nivel - 1))p" | cut -d' ' -f1)
+    [ -n "$card" ] || return 1
+  fi
+  mkdir -p ${CONF%/*}
+  {
+    echo "# Criado por /usr/sbin/ianinja-dm (nível $nivel): o X falhou com a configuração automática."
+    echo "# Apagado no próximo arranque ou com: sudo ianinja-dm repor"
+    echo 'Section "Device"'
+    echo '    Identifier "ianinja-recurso"'
+    echo '    Driver "modesetting"'
+    echo '    Option "AccelMethod" "none"'
+    [ -n "$card" ] && echo "    Option \"kmsdev\" \"/dev/dri/$card\""
+    echo 'EndSection'
+  } > $CONF
+}
+# níveis 2+ (uma placa de cada vez) só fazem sentido com mais do que uma placa:
+# com uma só, o nível 1 já a usou da mesma maneira
+if [ $nivel -ge 2 ] && { [ $n_placas -lt 2 ] || [ $((nivel - 1)) -gt $n_placas ]; }; then
+  desistir "o X falhou com a configuração automática, sem aceleração e em cada placa: $(echo $lista | tr '\n' ' ')"
+fi
+escrever_conf
+
+# teste: ianinja-dm.simular-falha=N — as N primeiras tentativas usam um driver inexistente
+sim=$(sed -n 's/.*ianinja-dm\.simular-falha=\([0-9]*\).*/\1/p' /proc/cmdline)
+if [ -n "$sim" ] && [ $tent -lt $sim ]; then
+  mkdir -p ${CONF%/*}
+  printf '# ianinja-dm: falha simulada (ianinja-dm.simular-falha=%s)\nSection "Device"\n    Identifier "ianinja-simulado"\n    Driver "ianinja_inexistente"\nEndSection\n' "$sim" > $CONF
+  log "tentativa $((tent + 1)): falha SIMULADA (driver do Xorg inexistente)"
+fi
+tent=$((tent + 1)); echo $tent > $D/tentativas
+
+desc="automático"
+[ -f $CONF ] && desc=$(grep -o 'kmsdev" "[^"]*\|AccelMethod" "none\|Driver "ianinja_inexistente' $CONF | tr -d '"' | tr '\n' ' ')
+inicio=$(date +%s)
+log "tentativa $tent, nível $nivel ($desc); placas: $(echo $lista | tr '\n' ' ')"
+$DISPLAY_MANAGER $DM_OPTIONS &
+pid=$!
+# paragem (telinit 3/0/6): o init manda TERM a este processo, que o passa ao LightDM
+parar() {
+  kill -TERM $pid 2>/dev/null; wait $pid 2>/dev/null
+  log "parado pelo init (mudança de nível)"
+  exit 0
+}
+trap parar TERM INT HUP
+
+# Vigia: sucesso quando há um servidor X e um greeter ou uma sessão de utilizador.
+# Sem limite de tempo (em máquinas lentas o X demora); um "Fatal server error" do X
+# arrancado por este LightDM sem o LightDM sair em 20 s também conta como falha.
+ok=0; fatal=0
+while kill -0 $pid 2>/dev/null; do
+  if { pidof Xorg || pidof X; } > /dev/null 2>&1 &&
+     { pidof lightdm-gtk-greeter || pgrep -x xfce4-session || pgrep -x startxfce4; } > /dev/null 2>&1; then
+    ok=1; break
+  fi
+  for f in /var/log/lightdm/x-0.log /var/log/Xorg.0.log; do
+    [ -f $f ] && [ $(stat -c %Y $f) -ge $inicio ] && grep -qs 'Fatal server error' $f && fatal=$((fatal + 1)) && break
+  done
+  if [ $fatal -ge 10 ]; then
+    log "o X falhou (Fatal server error) e o LightDM não saiu: a pará-lo"
+    kill -TERM $pid 2>/dev/null; sleep 3; kill -KILL $pid 2>/dev/null
+    break
+  fi
+  sleep 2
+done
+
+if [ $ok = 1 ]; then
+  echo 0 > $D/falhas
+  if [ $nivel = 0 ]; then
+    log "interface gráfica ativa (X e greeter/sessão a correr)"
+  else
+    log "interface gráfica ativa no nível de recurso $nivel ($desc)"
+  fi
+  wait $pid; rc=$?
+  log "o gestor de sessões terminou (código $rc)"
+  exit $rc
+fi
+
+wait $pid 2>/dev/null; rc=$?
+falhas=$((falhas + 1))
+log "falha (tentativa $tent, nível $nivel): o gestor de sessões saiu (código $rc) sem o ambiente gráfico ter arrancado"
+grep -h -A4 'Fatal server error' /var/log/lightdm/x-0.log /var/log/Xorg.0.log 2>/dev/null | head -n 10 >> $LOG
+# 2 tentativas no nível 0 (pode ser só um problema passageiro), 1 em cada nível de recurso
+if [ $nivel -gt 0 ] || [ $falhas -ge 2 ]; then
+  nivel=$((nivel + 1)); falhas=0
+  log "a passar ao nível $nivel"
+fi
+echo $nivel > $D/nivel; echo $falhas > $D/falhas
+# pausa curta antes de o init voltar a lançar (evita o "respawning too fast" do SysVinit)
+sleep 2
+exit 1

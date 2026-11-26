@@ -1,0 +1,103 @@
+#!/usr/bin/python3
+# openrazer — controlo simples dos periféricos Razer pelo serviço OpenRazer (openrazer-daemon).
+# Uso: openrazer [-l]                         lista os dispositivos (bateria, brilho, efeitos)
+#      openrazer brilho <0-100> [N]           brilho (de todos ou só do dispositivo N da lista)
+#      openrazer cor <RRGGBB> [N]             cor fixa (ex.: openrazer cor 00ff00)
+#      openrazer efeito <nome> [N] [RRGGBB]   espectro | respirar | onda | reativo | desligar
+# O serviço inicia-se sozinho na sessão gráfica quando há um periférico Razer ligado; o
+# utilizador tem de pertencer ao grupo plugdev (o ninja já pertence).
+import sys
+
+def uso(c=0):
+    with open(__file__, encoding="utf-8") as f:
+        for i, l in enumerate(f):
+            if 1 <= i <= 7:
+                print(l[2:].rstrip())
+    sys.exit(c)
+
+def erro(m):
+    print("openrazer: " + m, file=sys.stderr)
+    sys.exit(1)
+
+def cor(s):
+    s = s.lstrip("#")
+    if len(s) != 6:
+        erro("cor inválida: %s (use RRGGBB, ex.: ff0000)" % s)
+    try:
+        return int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
+    except ValueError:
+        erro("cor inválida: " + s)
+
+a = sys.argv[1:]
+if a and a[0] in ("-h", "--help", "--ajuda"):
+    uso()
+try:
+    from openrazer.client import DeviceManager, DaemonNotFound
+except ImportError as e:
+    erro("biblioteca OpenRazer em falta (%s)" % e)
+try:
+    dm = DeviceManager()
+except DaemonNotFound:
+    erro("o serviço openrazer-daemon não está a correr (inicie-o com: openrazer-daemon)")
+dm.sync_effects = False
+dev = list(dm.devices)
+if not dev:
+    print("Nenhum periférico Razer reconhecido (ligado por USB e suportado pelo OpenRazer?).")
+    sys.exit(0 if not a or a[0] == "-l" else 1)
+
+def alvo(n):
+    if n is None:
+        return dev
+    try:
+        return [dev[int(n) - 1]]
+    except (ValueError, IndexError):
+        erro("dispositivo %s não existe (ver openrazer -l)" % n)
+
+if not a or a[0] in ("-l", "--lista", "lista"):
+    for i, d in enumerate(dev, 1):
+        extra = []
+        if d.has("battery"):
+            extra.append("bateria %s%%" % d.battery_level)
+        if d.has("brightness"):
+            extra.append("brilho %d" % d.brightness)
+        ef = [e for e in ("static", "spectrum", "breath_single", "wave", "reactive", "none") if d.fx.has(e)]
+        print("%d. %s (%s) série %s, firmware %s" % (i, d.name, d.type, d.serial, d.firmware_version))
+        if extra:
+            print("   " + ", ".join(extra))
+        if ef:
+            print("   efeitos: " + " ".join(ef))
+    sys.exit(0)
+
+cmd = a[0]
+if cmd == "brilho":
+    if len(a) < 2:
+        uso(1)
+    v = max(0, min(100, int(a[1])))
+    for d in alvo(a[2] if len(a) > 2 else None):
+        if d.has("brightness"):
+            d.brightness = v
+            print("%s: brilho %d" % (d.name, v))
+elif cmd == "cor":
+    if len(a) < 2:
+        uso(1)
+    r, g, b = cor(a[1])
+    for d in alvo(a[2] if len(a) > 2 else None):
+        if d.fx.has("static") and d.fx.static(r, g, b):
+            print("%s: cor %s" % (d.name, a[1]))
+elif cmd == "efeito":
+    if len(a) < 2:
+        uso(1)
+    n = a[2] if len(a) > 2 and a[2].isdigit() else None
+    c = cor(a[-1]) if len(a) > 2 and not a[-1].isdigit() else (0, 255, 0)
+    for d in alvo(n):
+        fx = d.fx
+        ok = {"espectro": lambda: fx.has("spectrum") and fx.spectrum(),
+              "respirar": lambda: fx.has("breath_single") and fx.breath_single(*c),
+              "onda": lambda: fx.has("wave") and fx.wave(1),
+              "reativo": lambda: fx.has("reactive") and fx.reactive(*c, 2),
+              "desligar": lambda: fx.has("none") and fx.none()}.get(a[1])
+        if ok is None:
+            erro("efeito desconhecido: %s" % a[1])
+        print("%s: %s %s" % (d.name, a[1], "ok" if ok() else "não suportado"))
+else:
+    uso(1)

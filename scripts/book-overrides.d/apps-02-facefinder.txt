@@ -1,0 +1,7 @@
+# F8e — aplicações, bloco 2: OpenCV, NumPy, PyGObject, Ristretto (projeto face-finder).
+# Ver scripts/apps/decisoes-02.txt.
+# página                                        tipo     blocos  # motivo
+blfs/general/python-dependencies@meson_python   skip     3       # testes: criam um venv e descarregam meson_python[test] com pip (o chroot não tem rede)
+blfs/general/python-modules@numpy               skip     3       # testes: venv + pip install hypothesis (precisa de rede)
+blfs/general/opencv                             skip     1       # opencv_contrib não é descarregado: o face-finder só precisa de dnn/objdetect (módulos base)
+blfs/general/opencv                             replace  2       # sem xine/FFmpeg/GStreamer, WITH_IPP=OFF e sem G-API/ADE (o cmake descarregá-los-ia; chroot sem rede); Python 3 obrigatório

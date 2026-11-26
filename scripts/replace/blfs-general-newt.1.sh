@@ -1,0 +1,7 @@
+sed -e '/install -m 644 $(LIBNEWT)/ s/^/#/' \
+    -e '/$(LIBNEWT):/,/rv/ s/^/#/'          \
+    -e 's/$(LIBNEWT)/$(LIBNEWTSH)/g'        \
+    -i Makefile.in                          &&
+./configure --prefix=/usr      \
+            --with-python=python3.13 &&
+make

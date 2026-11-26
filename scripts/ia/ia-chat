@@ -1,0 +1,49 @@
+#!/bin/bash
+# ia-chat — chat interativo no terminal com um modelo local (llama.cpp, só CPU).
+# Uso: ia-chat [-m modelo] [-c contexto] [-t threads] [-l] [-h] [-- opções extra do llama-cli]
+source /usr/share/ia/ia-comum.sh
+
+ajuda() {
+  cat << EOF
+Uso: ia-chat [opções] [-- opções extra do llama-cli]
+
+Chat interativo com um modelo de linguagem local (corre no CPU, sem Internet).
+
+  -m MODELO   ficheiro .gguf ou nome de um modelo em $IA_MODELOS_SIS ou $IA_MODELOS_VAR
+              (por omissão: $IA_PREDEFINIDO)
+  -c N        tamanho do contexto em tokens (por omissão: calculado pela RAM livre)
+  -t N        threads (por omissão: núcleos físicos)
+  -l          lista os modelos disponíveis
+  -h          esta ajuda
+
+Durante o chat: /sair (ou /exit, ou Ctrl+C) termina e volta à shell; /clear limpa a conversa;
+/regen gera de novo a última resposta.
+EOF
+}
+
+modelo="" ctx="" thr=""
+while getopts ":m:c:t:lh" o; do
+  case $o in
+    m) modelo=$OPTARG ;;
+    c) ctx=$OPTARG ;;
+    t) thr=$OPTARG ;;
+    l) ia_listar; exit 0 ;;
+    h) ajuda; exit 0 ;;
+    :) ia_erro "a opção -$OPTARG precisa de um valor (ver ia-chat -h)" ;;
+    *) ia_erro "opção desconhecida -$OPTARG (ver ia-chat -h)" ;;
+  esac
+done
+shift $((OPTIND-1))
+[ "${1:-}" = "--" ] && shift
+
+M=$(ia_modelo "$modelo") || exit 1
+[ -n "$thr" ] || thr=$(ia_threads)
+[ -n "$ctx" ] || ctx=$(ia_contexto "$M")
+
+echo "Modelo: $(basename "$M") · threads: $thr · contexto: $ctx tokens · /sair para terminar"
+llama-cli -m "$M" -t "$thr" -c "$ctx" -sys "$IA_SISTEMA" \
+  --temp 0.7 --top-p 0.9 --repeat-penalty 1.1 "$@"
+rc=$?
+echo
+echo "Chat de IA terminado. Para voltar a abrir: ia-chat"
+exit $rc

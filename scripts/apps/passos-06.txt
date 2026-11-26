@@ -1,0 +1,3 @@
+# F8e — bloco 6: correções no fim da etapa (depois do GnuTLS, passos-01). Formato id|comando.
+# Ver scripts/apps/decisoes-06.txt.
+vte-gnutls|apps_vte_gnutls                     # VTE da F8d recompilada com GnuTLS (sem o aviso vermelho no terminal)

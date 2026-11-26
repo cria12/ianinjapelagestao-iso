@@ -1,0 +1,43 @@
+#!/bin/bash
+# ia-perguntar — pergunta única, não interativa: escreve SÓ a resposta do modelo no stdout.
+# Funciona sem TTY (consola série, scripts, pipes). Semente fixa e temperatura baixa (respostas
+# reprodutíveis); no máximo IA_TOKENS tokens (64 por omissão).
+# Uso: ia-perguntar [-m modelo] [-n tokens] "texto"     (ou o texto pelo stdin)
+source /usr/share/ia/ia-comum.sh
+
+modelo="" ntok=${IA_TOKENS:-64}
+while getopts ":m:n:h" o; do
+  case $o in
+    m) modelo=$OPTARG ;;
+    n) ntok=$OPTARG ;;
+    h) echo "Uso: ia-perguntar [-m modelo] [-n tokens] \"pergunta\"   (sem argumento, lê do stdin)"; exit 0 ;;
+    *) ia_erro "opção inválida (ver ia-perguntar -h)" ;;
+  esac
+done
+shift $((OPTIND-1))
+texto="$*"
+if [ -z "$texto" ] && [ ! -t 0 ]; then texto=$(cat); fi
+[ -n "$texto" ] || ia_erro "falta a pergunta (ex.: ia-perguntar \"Qual é a capital de Portugal?\")"
+
+M=$(ia_modelo "$modelo") || exit 1
+thr=$(ia_threads)
+err=$(mktemp)
+trap 'rm -f "$err"' EXIT
+
+# llama-completion em modo conversa de uma só volta (-cnv -st): aplica o modelo de chat do
+# próprio GGUF; --no-display-prompt omite o prompt; os registos vão para stderr (descartados).
+resp=$(llama-completion -m "$M" -t "$thr" -c 2048 -n "$ntok" \
+         --seed 42 --temp 0.1 --top-k 20 --repeat-penalty 1.05 \
+         -sys "$IA_SISTEMA" -p "$texto" -cnv -st --no-display-prompt --simple-io \
+         --no-warmup < /dev/null 2> "$err")
+rc=$?
+# limpa marcas do modo conversa e espaços nas pontas
+resp=$(printf '%s\n' "$resp" \
+       | sed -e 's/\r//g' -e 's/[[:space:]]*\[end of text\][[:space:]]*$//' -e 's/^> *$//' -e 's/[[:space:]]*$//' \
+       | awk '{l[NR]=$0} NF{if(!f)f=NR; e=NR} END{if(f)for(i=f;i<=e;i++)print l[i]}')
+if [ $rc -ne 0 ] || [ -z "$resp" ]; then
+  echo "ia-perguntar: o modelo não respondeu (código $rc). Últimas mensagens:" >&2
+  tail -n 15 "$err" >&2
+  exit 1
+fi
+printf '%s\n' "$resp"

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160" preserveAspectRatio="xMidYMid slice">
+  <!-- Papel de parede do ianinjapelagestao (original, CC0): gradiente claro com manchas suaves de cor
+       (só gradientes radiais, sem filtros — rápido de desenhar pelo librsvg em qualquer resolução)
+       e o nome da distribuição, discreto, no canto inferior direito. -->
+  <!-- Começa logo por <svg (sem declaração XML nem comentário antes): o gdk-pixbuf (xfdesktop,
+       lightdm-gtk-greeter) reconhece o formato pelos primeiros bytes e recusava o ficheiro. -->
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e6edfd"/>
+      <stop offset=".55" stop-color="#f1eaf8"/>
+      <stop offset="1" stop-color="#fdf0e6"/>
+    </linearGradient>
+    <radialGradient id="azul" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(950 650) scale(1500 1150)">
+      <stop offset="0" stop-color="#7aa5ff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#7aa5ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="violeta" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(2950 520) scale(1400 1050)">
+      <stop offset="0" stop-color="#c49dff" stop-opacity=".50"/>
+      <stop offset="1" stop-color="#c49dff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pessego" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(2700 1850) scale(1600 1000)">
+      <stop offset="0" stop-color="#ffbe94" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ffbe94" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="verde" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(650 1900) scale(1300 900)">
+      <stop offset="0" stop-color="#8fe0d3" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#8fe0d3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="onda" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#ffffff" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#base)"/>
+  <rect width="3840" height="2160" fill="url(#azul)"/>
+  <rect width="3840" height="2160" fill="url(#violeta)"/>
+  <rect width="3840" height="2160" fill="url(#pessego)"/>
+  <rect width="3840" height="2160" fill="url(#verde)"/>
+  <path d="M0 1320C700 1080 1250 1500 1950 1290S3200 960 3840 1180V1420C3200 1210 2650 1560 1950 1530S700 1300 0 1560Z" fill="url(#onda)"/>
+  <path d="M0 1700C800 1500 1500 1820 2200 1660S3300 1440 3840 1560V1660C3300 1560 2700 1860 2100 1840S800 1640 0 1820Z" fill="url(#onda)" opacity=".6"/>
+  <!-- x=3150: com preserveAspectRatio slice, em ecrãs 16:10, 4:3 ou 5:4 corta-se dos lados (ex. 1280x800 só mostra x 192-3648); a 3720 o nome ficava cortado -->
+  <text x="3150" y="2070" text-anchor="end" font-family="Inter, sans-serif" font-size="46" font-weight="500"
+        letter-spacing="7" fill="#3a3f5c" fill-opacity=".30">ianinjapelagestao</text>
+</svg>

@@ -1,0 +1,38 @@
+#!/bin/bash
+# trocar-driver — chamado (como root, desligado do terminal) por "instalar-driver-nvidia --ativar":
+# sai da sessão gráfica (nível 3 do SysVinit: o init termina o LightDM, que está no inittab com
+# respawn só no nível 5), solta a consola do nouveau, descarrega o nouveau, carrega o nvidia-drm
+# e volta ao nível 5. Se o nvidia não carregar, repõe o nouveau e tira a configuração do Xorg
+# para o ecrã gráfico voltar como estava.
+export PATH=/usr/sbin:/usr/bin
+echo "=== $(date) trocar-driver: nouveau -> nvidia"
+sleep 2
+telinit 3
+for i in $(seq 30); do pgrep -x lightdm > /dev/null || pgrep -x Xorg > /dev/null || break; sleep 1; done
+pkill -x Xorg 2> /dev/null; sleep 1
+for v in /sys/class/vtconsole/vtcon*/bind; do
+  grep -q 'frame buffer' "${v%/bind}/name" 2> /dev/null && echo 0 > "$v"
+done
+ok=0
+if modprobe -r nouveau; then
+  modprobe nvidia-drm modeset=1 fbdev=1
+  modprobe nvidia-uvm 2> /dev/null
+  if [ -d /sys/module/nvidia_drm ]; then
+    ok=1
+    echo "nvidia $(cat /sys/module/nvidia/version) carregado"
+  fi
+else
+  echo "não foi possível descarregar o nouveau (em uso)"
+fi
+if [ $ok = 0 ]; then
+  echo "FALHOU: a repor o nouveau; o driver NVIDIA fica instalado mas inativo"
+  mv -f /etc/X11/xorg.conf.d/10-nvidia.conf /etc/X11/xorg.conf.d/10-nvidia.conf.inativo 2> /dev/null
+  mv -f /etc/lightdm/lightdm.conf.d/50-nvidia-prime.conf /etc/lightdm/lightdm.conf.d/50-nvidia-prime.conf.inativo 2> /dev/null
+  modprobe -r nvidia-drm nvidia-modeset nvidia 2> /dev/null
+  modprobe nouveau
+fi
+for v in /sys/class/vtconsole/vtcon*/bind; do
+  grep -q 'frame buffer' "${v%/bind}/name" 2> /dev/null && echo 1 > "$v"
+done
+telinit 5
+echo "=== $(date) trocar-driver terminou (ok=$ok)"

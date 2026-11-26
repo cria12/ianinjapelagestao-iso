@@ -1,0 +1,55 @@
+# F8d — bloco 1: base gráfica (bibliotecas gerais, Xorg, Mesa). Formato id|comando.
+xorg7|pagina_config x/xorg7
+util-macros|pacote x/util-macros
+xorgproto|pacote x/xorgproto
+libXau|pacote x/libXau
+xcb-proto|pacote x/xcb-proto
+libXdmcp|pacote x/libXdmcp
+libxcb|pacote x/libxcb
+libpng|pacote general/libpng
+pixman|pacote general/pixman
+docutils|pacote general/python-modules@docutils
+icu|pacote general/icu
+libxml2|pacote general/libxml2
+libxslt|pacote general/libxslt
+pcre2|pacote general/pcre2
+glib2|pacote general/glib2 --extra gobject-introspection-1.84.0     # GLib + GObject Introspection (download adicional)
+freetype2|pacote general/freetype2
+graphite2|pacote general/graphite2
+harfbuzz|pacote general/harfbuzz
+freetype2-harfbuzz|pacote general/freetype2                         # o livro manda recompilar o FreeType com o HarfBuzz
+fontconfig|pacote general/fontconfig
+x7lib|pagina_rede x/x7lib                                           # wget -i- + md5sum -c da lista do livro
+libxcvt|pacote x/libxcvt
+libdrm|pacote x/libdrm
+Mako|pacote general/python-modules@Mako
+cython|pacote general/python-modules@cython
+libyaml|pacote general/libyaml
+PyYAML|pacote general/python-modules@PyYAML
+llvm|pacote general/llvm --extra llvm-cmake-20.1.8 --extra llvm-third-party-20.1.8 --extra clang-20.1.8   # clang: preciso ao libclc (driver iris)
+spirv-headers|pacote general/spirv-headers                          # fora da ordem.txt: dependências do libclc (iris)
+spirv-tools|pacote general/spirv-tools
+spirv-llvm-translator|pacote general/spirv-llvm-translator
+libclc|pacote general/libclc
+mesa|pacote x/mesa --extra mesa-add_xdemos-4                        # patch recomendado: glxinfo e glxgears
+mesa-vgem|mesa_vgem                                                 # módulo vgem no arranque (llvmpipe/softpipe)
+xbitmaps|pacote x/xbitmaps
+xcb-util|pacote x/xcb-util
+x7app|pagina_rede x/x7app
+xcursor-themes|pacote x/xcursor-themes
+x7font|pagina_rede x/x7font
+xkeyboard-config|pacote x/xkeyboard-config
+dbus|pacote general/dbus
+dbus-bootscript|bootscripts dbus                                    # /etc/rc.d/init.d/dbus (S29 nos níveis 2-5)
+elogind|pacote general/elogind
+duktape|pacote general/duktape
+polkit|pacote postlfs/polkit
+libtirpc|pacote basicnet/libtirpc
+libepoxy|pacote x/libepoxy                                          # do bloco 2, mas o glamor (modesetting) do xorg-server precisa dele
+xorg-server|pacote x/xorg-server
+xorg-teclado|xorg_teclado                                           # /etc/X11/xorg.conf.d/00-keyboard.conf (pt)
+libevdev|pacote x/x7driver@libevdev
+mtdev|pacote general/mtdev
+libinput|pacote x/x7driver@libinput
+xorg-libinput-driver|pacote x/x7driver@xorg-libinput-driver
+xinit|pacote x/xinit

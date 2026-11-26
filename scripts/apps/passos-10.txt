@@ -1,0 +1,7 @@
+# F8e — bloco 10: otimizações (sistema mais leve). Formato id|comando. Ver decisoes-10.txt.
+# Correm no fim da F8e, depois de tudo instalado (o strip apanha também o que os blocos anteriores
+# instalaram). A parte só da imagem (exclusões do SquashFS) está na F9; zswap.enabled=0 na F10.
+otim-bluetooth|otim_bluetooth                 # bluetoothd e blueman-applet só com adaptador; hotplug pelo udev
+otim-xfce|otim_xfce                           # compositor desligado em modo de recurso; tumbler com limite de 50 MiB
+otim-strip|otim_strip                         # strip --strip-unneeded dos ELF com símbolos + verificação dos programas
+otim-verificar|otim_verificar                 # resumo para o log: serviços, autostart, espaço

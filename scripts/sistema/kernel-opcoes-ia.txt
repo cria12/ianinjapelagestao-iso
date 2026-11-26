@@ -1,0 +1,64 @@
+# Opções do kernel para o ianinjapelagestao como SO de IA (LLM no CPU com llama.cpp)
+# Lidas pelo scripts/f07-kernel.sh (linhas OPÇÃO=y|n; '#' e linhas vazias são ignoradas).
+# Tudo embutido (=y): o initramfs não leva módulos. As justificações estão em docs/DECISOES.md.
+
+# --- Memória: swap comprimida em RAM (zram) ---
+SWAP=y
+ZRAM=y
+ZSMALLOC=y
+ZRAM_BACKEND_LZ4=y
+ZRAM_BACKEND_ZSTD=y
+ZRAM_DEF_COMP_ZSTD=y
+ZRAM_DEF_COMP_LZORLE=n
+CRYPTO_LZ4=y
+CRYPTO_ZSTD=y
+
+# --- Memória: Transparent Huge Pages, por omissão só com madvise() ---
+TRANSPARENT_HUGEPAGE=y
+TRANSPARENT_HUGEPAGE_MADVISE=y
+TRANSPARENT_HUGEPAGE_ALWAYS=n
+
+# --- NUMA (já vem no defconfig x86_64; fixado aqui). Balanceamento automático desligado ---
+NUMA=y
+NUMA_BALANCING=n
+
+# --- CPU: escalonamento de frequência, governador por omissão "performance" ---
+CPU_FREQ=y
+CPU_FREQ_GOV_PERFORMANCE=y
+CPU_FREQ_GOV_SCHEDUTIL=y
+CPU_FREQ_GOV_POWERSAVE=y
+CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y
+CPU_FREQ_DEFAULT_GOV_USERSPACE=n
+CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=n
+X86_INTEL_PSTATE=y
+X86_AMD_PSTATE=y
+X86_ACPI_CPUFREQ=y
+
+# --- Preempção e frequência do relógio: mantém-se o do defconfig, fixado aqui ---
+PREEMPT_VOLUNTARY=y
+PREEMPT_DYNAMIC=y
+HZ_1000=y
+
+# --- Persistência em pen USB / cartão SD / NVMe (encontrada pelo initramfs sem módulos) ---
+EXT4_FS=y
+USB_STORAGE=y
+USB_UAS=y
+MMC=y
+MMC_BLOCK=y
+MMC_SDHCI=y
+MMC_SDHCI_PCI=y
+MMC_SDHCI_PLTFM=y
+MMC_SDHCI_ACPI=y
+MISC_RTSX_PCI=y
+MMC_REALTEK_PCI=y
+NVME_CORE=y
+BLK_DEV_NVME=y
+VMD=y
+VFAT_FS=y
+NLS_CODEPAGE_437=y
+NLS_ISO8859_1=y
+NLS_UTF8=y
+
+# --- Consola gráfica em UEFI (efifb como alternativa ao simpledrm; exige FB=y) ---
+FB=y
+FB_EFI=y

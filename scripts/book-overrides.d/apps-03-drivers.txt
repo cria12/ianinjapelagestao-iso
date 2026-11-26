@@ -1,0 +1,7 @@
+# F8e — drivers e periféricos (bloco 3). Ver scripts/apps/decisoes-03.txt.
+# página                        tipo     blocos  # motivo
+blfs/x/vulkan-loader            skip     2       # testes: o update_deps.py clona repositórios com git (o chroot não tem rede)
+blfs/general/libical            replace  1       # sem Vala: -D ICAL_GLIB_VAPI=false (GObject Introspection mantém-se)
+blfs/general/libical            skip     2,4     # documentação da API precisa de Doxygen (não instalado)
+blfs/general/bluez              skip     4       # documentação .txt omitida para poupar espaço na ISO
+blfs/general/bluez              skip     8       # make install-bluetooth corre no passo bluez-bootscript (função bootscripts)

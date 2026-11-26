@@ -1,0 +1,12 @@
+# F8d — interface gráfica, bloco 3: Xfce, terminal, LightDM e tipos de letra. Ver scripts/gui/decisoes-03.txt.
+blfs/x/libnotify                skip     2       # documentação API precisa de GTK-Doc (não instalado)
+blfs/xfce/xfce4-session         skip     4,5     # ~/.xinitrc + startx: a sessão é lançada pelo LightDM (/usr/share/xsessions/xfce.desktop); interativo
+blfs/gnome/vte                  replace  1       # GnuTLS, GTK-4 e Vala não estão instalados: + -D gnutls=false -D gtk4=false -D vapi=false
+blfs/gnome/vte                  skip     2       # documentação API precisa de Gi-DocGen (não instalado)
+blfs/xfce/xfce4-terminal         replace  1       # retira doc/ do meson.build: a página de manual precisa do docbook-xsl (xsltproc --nonet falharia)
+blfs/xfce/xfce4-notifyd         skip     3       # notify-send de teste precisa de uma sessão gráfica e D-Bus a correr
+blfs/x/lightdm                  replace  1       # utilizador/grupo lightdm criados só se não existirem (permite repetir o passo)
+blfs/x/lightdm                  replace  7       # o Xorg está em /usr (XORG_PREFIX=/usr), não em /opt/xorg: só garante /usr/bin/X -> Xorg
+blfs/x/lightdm                  skip     8       # make install-lightdm corre no passo lightdm-bootscript (função bootscripts, no diretório do blfs-bootscripts)
+blfs/x/lightdm                  replace  9       # telinit 5 não pode correr no chroot -> configuração funcional do seat (greeter e sessão xfce); runlevel 5 no passo lightdm-runlevel5
+blfs/x/TTF-and-OTF-fonts        skip     1       # página sem tarball: as fontes são descarregadas e instaladas pela função fontes_ttf (scripts/gui/funcoes-03.sh)

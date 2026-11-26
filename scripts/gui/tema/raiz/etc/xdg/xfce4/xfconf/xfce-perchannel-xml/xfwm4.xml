@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ianinjapelagestao: gestor de janelas xfwm4 4.20 por omissão para todos os utilizadores.
+  Só se definem as chaves que mudam em relação a /usr/share/xfwm4/defaults.
+  button_layout "CHM|": Fechar, Minimizar (Hide), Maximizar à esquerda (semáforo do WhiteSur),
+  nada à direita; título centrado; compositor ligado com sombras.
+-->
+
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="WhiteSur-Light"/>
+    <property name="button_layout" type="string" value="CHM|"/>
+    <property name="title_alignment" type="string" value="center"/>
+    <property name="title_font" type="string" value="Inter Semi-Bold 10"/>
+    <property name="use_compositing" type="bool" value="true"/>
+    <property name="show_frame_shadow" type="bool" value="true"/>
+    <property name="show_popup_shadow" type="bool" value="true"/>
+    <property name="show_dock_shadow" type="bool" value="false"/>
+    <property name="placement_mode" type="string" value="center"/>
+    <property name="placement_ratio" type="int" value="100"/>
+    <property name="cycle_preview" type="bool" value="true"/>
+    <property name="workspace_count" type="int" value="2"/>
+    <property name="double_click_action" type="string" value="maximize"/>
+    <property name="snap_to_border" type="bool" value="true"/>
+    <property name="tile_on_move" type="bool" value="true"/>
+  </property>
+</channel>

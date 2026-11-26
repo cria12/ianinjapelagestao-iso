@@ -1,0 +1,76 @@
+#!/bin/bash
+# ia-criar-persistencia — prepara uma partição (ou um disco vazio) como disco de dados persistente
+# do ianinjapelagestao: ext4 com o rótulo IANINJA-DADOS. Invólucro de linha de comandos do
+# backend /usr/sbin/ianinja-persistencia (tipo "particao"), que faz todas as verificações de
+# segurança (recusa a ISO em execução, as partições da própria imagem, partições montadas ou em
+# swap, EFI/MSR, um Windows instalado) e copia para lá o que já foi alterado nesta sessão.
+# Desde o bloco 11 da F8e o assistente de 1.º arranque faz isto sozinho (também sem apagar nada:
+# partição nova na pen ou ficheiro no disco do Windows); este comando fica para a consola.
+#
+# Uso: sudo ia-criar-persistencia /dev/<partição>      (ex.: /dev/sdb3)
+# ATENÇÃO: apaga TODO o conteúdo da partição indicada.
+set -euo pipefail
+ROTULO=IANINJA-DADOS
+BACKEND=/usr/sbin/ianinja-persistencia
+
+uso() {
+  cat << EOF
+Uso: ia-criar-persistencia /dev/<partição>
+
+Cria um sistema de ficheiros ext4 com o rótulo $ROTULO na partição indicada,
+para o ianinjapelagestao guardar as alterações (e os modelos de IA) entre arranques.
+Indique uma PARTIÇÃO (ex.: /dev/sdb1 numa segunda pen USB) ou um disco sem partições.
+Para criar a partição use primeiro fdisk ou cfdisk. Veja os discos com:
+  lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MODEL
+Sem apagar nada (partição nova na pen, ficheiro no disco do Windows):
+  ianinja-persistencia listar      e depois      ianinja-persistencia criar <id>
+EOF
+  exit "${1:-1}"
+}
+erro() { echo "Erro: $*" >&2; exit 1; }
+
+[ $# -eq 1 ] || uso
+case $1 in -h|--help|--ajuda) uso 0 ;; esac
+[ "$(id -u)" = 0 ] || erro "tem de correr como root (ex.: sudo ia-criar-persistencia $1)"
+mountpoint -q /run/live/iso || erro "este comando só corre dentro do sistema live ianinjapelagestao (não encontrei /run/live/iso)"
+[ -x $BACKEND ] || erro "$BACKEND não está instalado"
+
+dev=$(readlink -f -- "$1")
+[ -b "$dev" ] || erro "$1 não é um dispositivo de blocos"
+id="particao:$dev"
+# a lista do backend é a única fonte de verdade: o que não aparece é recusado (com o motivo possível)
+lista=$($BACKEND listar --json)
+if ! python3 -I -c 'import json, sys; sys.exit(0 if any(o["id"] == sys.argv[2] for o in json.loads(sys.argv[1])) else 1)' "$lista" "$id"; then
+  estado=$($BACKEND estado)
+  echo "$estado"
+  echo "Destinos possíveis:"; $BACKEND listar | sed 's/^/  /'
+  erro "$dev não pode ser usado: é a ISO em execução ou uma partição da imagem, está montada ou em swap, é EFI/MSR, tem um Windows, ou é demasiado pequena."
+fi
+disco=$(lsblk -dno PKNAME "$dev" 2>/dev/null || true)
+echo
+lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MODEL "/dev/${disco:-$(basename "$dev")}" 2>/dev/null || lsblk "$dev"
+echo
+echo "################################################################"
+echo "  ATENÇÃO: TODO o conteúdo de $dev vai ser APAGADO"
+echo "  ($(lsblk -dno SIZE "$dev" | tr -d ' '), atual: $(lsblk -dno FSTYPE,LABEL "$dev" | tr -s ' ' | sed 's/^ *$/vazio/'))."
+echo "  Vai ser criado um sistema ext4 com o rótulo $ROTULO e o que já foi"
+echo "  alterado nesta sessão é copiado para lá."
+echo "################################################################"
+read -r -p "Para continuar escreva SIM (em maiúsculas): " resposta
+[ "$resposta" = SIM ] || { echo "Cancelado. Nada foi alterado."; exit 1; }
+
+$BACKEND criar "$id" --confirmo-apagar | while IFS= read -r l; do
+  case $l in
+    PROGRESSO\ *) set -- $l; n=$2; shift 2; printf '  [%3s%%] %s\n' "$n" "$*" ;;
+    OK\ *) ok=1 ;;
+    ERRO*) echo "Erro: ${l#ERRO}" >&2 ;;
+    *) echo "$l" ;;
+  esac
+done
+rc=${PIPESTATUS[0]}
+[ "$rc" = 0 ] || exit "$rc"
+echo
+echo "Pronto: $dev tem agora o rótulo $ROTULO."
+echo "Reinicie o computador com a pen ianinjapelagestao (entrada normal do menu) para"
+echo "passar a guardar as alterações. A mensagem de arranque deve dizer:"
+echo "  [ianinja-live] persistência: $ROTULO ($dev)"

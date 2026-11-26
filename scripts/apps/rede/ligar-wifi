@@ -1,0 +1,85 @@
+#!/bin/bash
+# ligar-wifi — liga o ianinjapelagestao a uma rede Wi-Fi através do NetworkManager (nmcli).
+# A forma normal é o ícone de rede na barra superior; este comando serve a consola e o SSH.
+#
+# Uso: ligar-wifi                       menu de redes no terminal (nmtui-connect)
+#      ligar-wifi <SSID> [interface]    ligar (pede a senha se a rede a tiver)
+#      ligar-wifi -l [interface]        procurar redes
+#      ligar-wifi -d [interface]        desligar
+#      ligar-wifi -e                    estado das placas e ligações
+#      ligar-wifi -h                    ajuda
+# As redes ficam guardadas em /etc/NetworkManager/system-connections e o NetworkManager volta a
+# ligar-se sozinho (numa sessão live só se houver persistência IANINJA-DADOS).
+set -u
+
+ajuda() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
+erro() { echo "ligar-wifi: $*" >&2; exit 1; }
+case "${1:-}" in -h|--help|--ajuda) ajuda; exit 0 ;; esac
+
+# quem não está no grupo netdev (nem numa sessão local ativa) não tem autorização no polkit
+if [ "$(id -u)" -ne 0 ] && ! id -nG | tr ' ' '\n' | grep -qx netdev; then
+  exec sudo -- "$0" "$@"
+fi
+
+type -P nmcli > /dev/null || erro "o nmcli (NetworkManager) não está instalado"
+if ! nmcli -t -f RUNNING general > /dev/null 2>&1; then
+  echo "ligar-wifi: o NetworkManager não está a correr." >&2
+  echo "  Iniciar: sudo /etc/rc.d/init.d/networkmanager start" >&2
+  exit 1
+fi
+
+placa_sem_fios() {
+  nmcli -t -f DEVICE,TYPE device 2> /dev/null | awk -F: '$2 == "wifi" { print $1; exit }'
+}
+
+modo=ligar
+case "${1:-}" in
+  -h|--help|--ajuda) ajuda; exit 0 ;;
+  -l|--procurar) modo=procurar; shift ;;
+  -d|--desligar) modo=desligar; shift ;;
+  -e|--estado) modo=estado; shift ;;
+  "") if [ -t 0 ] && type -P nmtui-connect > /dev/null; then exec nmtui-connect; fi
+      ajuda; exit 1 ;;
+  -*) erro "opção desconhecida $1 (ver -h)" ;;
+esac
+
+if [ "$modo" = estado ]; then
+  nmcli general status
+  echo
+  nmcli -f DEVICE,TYPE,STATE,CONNECTION device
+  exit 0
+fi
+
+if [ "$modo" = ligar ]; then
+  SSID=$1; shift
+  [ -n "$SSID" ] || erro "o SSID não pode ser vazio"
+fi
+IF=${1:-$(placa_sem_fios)}
+if [ -z "$IF" ]; then
+  echo "ligar-wifi: não foi encontrada nenhuma placa de rede sem fios." >&2
+  echo "  Placas: $(nmcli -t -f DEVICE,TYPE,STATE device | tr '\n' ' ')" >&2
+  echo "  Driver e firmware: info-hardware ; lsusb ; lspci -k ; sudo dmesg | grep -iE 'firmware|wlan|80211'" >&2
+  exit 1
+fi
+
+# o Wi-Fi pode estar desligado no NetworkManager ou bloqueado (modo de avião)
+nmcli radio wifi on 2> /dev/null
+
+case $modo in
+  procurar)
+    nmcli device wifi rescan ifname "$IF" 2> /dev/null && sleep 3
+    nmcli -f IN-USE,SSID,SIGNAL,BARS,SECURITY device wifi list ifname "$IF"
+    exit $? ;;
+  desligar)
+    nmcli device disconnect "$IF"
+    exit $? ;;
+esac
+
+nmcli device wifi rescan ifname "$IF" 2> /dev/null && sleep 3
+# --ask: o nmcli pede a senha sem eco só se a rede a pedir (nunca aparece na linha de comandos)
+if nmcli --ask device wifi connect "$SSID" ifname "$IF"; then
+  nmcli -f IP4.ADDRESS,IP4.GATEWAY,IP4.DNS device show "$IF" | sed 's/^/  /'
+  exit 0
+fi
+echo "Não foi possível ligar a \"$SSID\". Redes visíveis: ligar-wifi -l ; estado: ligar-wifi -e" >&2
+exit 1

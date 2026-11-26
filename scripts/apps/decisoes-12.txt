@@ -1,0 +1,35 @@
+## F8e bloco 12 — driver NVIDIA: /usr/sbin no PATH do instalar-driver-nvidia
+No teste em hardware real (RTX 5060, GB206) o atalho "Instalar driver NVIDIA" parava logo com
+"falta o comando modprobe": no LFS o modprobe, o depmod e o modinfo estão em /usr/sbin, e o
+/etc/profile só acrescenta /usr/sbin ao PATH do root; o terminal aberto pelo menu também não passa
+por um shell de login. O comando passa a acrescentar /usr/sbin ao próprio PATH (e verifica também
+cc e modinfo antes de descarregar 400 MB). Além disso /etc/profile.d/sbin.sh põe /usr/sbin no PATH
+de todos os utilizadores, como nas distribuições comuns.
+
+## F8e bloco 12 — áudio: WirePlumber do BLFS e lançador do PipeWire
+O PipeWire 1.4.7 foi instalado no bloco 5 só como biblioteca (para o xdg-desktop-portal), sem
+gestor de sessão e sem nada que o arrancasse: o OBS (Flatpak) não mostrava nenhum dispositivo em
+"Captura de entrada de áudio (PulseAudio)" e o microfone não funcionava em nenhuma aplicação (o
+ALSA por omissão já apontava para o PipeWire, que não estava a correr). Instala-se o Lua 5.4.8 e o
+WirePlumber 0.5.10 pelas páginas do BLFS 12.4 (uma tentativa anterior compilava o 0.5.3 do GitLab
+sem SHA-256 fixado e foi descartada). Da página do WirePlumber usa-se o pipewire-launcher.sh e o
+/etc/xdg/autostart/pipewire.desktop, com a espera corrigida (o ciclo do livro nunca esperava) e
+sem o sed em /etc/pulse/client.conf (não há PulseAudio instalado). O lançador arranca pipewire,
+wireplumber e pipewire-pulse (servidor PulseAudio usado pelo OBS, navegadores, Discord, Zoom).
+
+## F8e bloco 12 — áudio Bluetooth: SBC e PipeWire recompilado
+O plugin spa bluez5 não tinha sido compilado (faltava o SBC): headsets Bluetooth emparelhavam mas
+não davam som. Instala-se o SBC 2.1 e recompila-se o PipeWire (mesma página e mesmas opções).
+
+## F8e bloco 12 — GNOME Keyring (org.freedesktop.secrets)
+O GitHub Desktop (Flatpak) falhava com "The name org.freedesktop.secrets was not provided by any
+.service files": não havia serviço de chaveiro. Instala-se o GNOME Keyring 48.0 do BLFS (o Gcr 3 já
+existia) com -D manpage=false (sem docbook-xsl). O serviço D-Bus é ativado a pedido; o PAM do
+LightDM desbloqueia o chaveiro "login" com a senha da sessão (pam_gnome_keyring auth + session
+auto_start; no /etc/pam.d/passwd, depois do "password include system-password", um
+"password optional pam_gnome_keyring.so use_authtok", para que mudar a senha com passwd mude
+também a do chaveiro) e os autostart secrets/pkcs11 passam a incluir o Xfce.
+
+## F8e bloco 12 — v4l-utils
+v4l2-ctl (e v4l2grab) para diagnosticar câmaras UVC como a Razer Kiyo X (formatos, resoluções,
+taxas de fotogramas). A câmara já era detetada (uvcvideo) e listada pelo OBS.

@@ -1,0 +1,22 @@
+# ianinjapelagestao: configuração inicial do xfce4-docklike-plugin 0.5.1 (dock).
+# Lida pelo plugin quando o utilizador ainda não tem ~/.config/xfce4/panel/docklike-<id>.rc
+# (procura xfce4/panel/docklike.rc em XDG_CONFIG_DIRS); depois cada utilizador guarda a sua.
+# pinned: IDs dos .desktop (sem ".desktop", em minúsculas) fixados na dock, por esta ordem; só
+# lançadores que existam sempre (loja e instalar-aplicacoes: F8e; code/google-chrome não, são instalados depois).
+# indicatorStyle/inactiveIndicatorStyle 1 = pontos (como no macOS); indicatorOrientation 0 = automático.
+[user]
+pinned=thunar;xfce4-terminal;xfce4-appfinder;loja;instalar-aplicacoes;xfce-settings-manager;
+forceIconSize=true
+iconSize=48
+indicatorOrientation=0
+indicatorStyle=1
+inactiveIndicatorStyle=1
+indicatorColorFromTheme=true
+showPreviews=true
+showWindowCount=false
+noWindowsListIfSingle=true
+onlyDisplayVisible=false
+onlyDisplayScreen=false
+middleButtonBehavior=1
+keyComboActive=false
+keyAloneActive=false

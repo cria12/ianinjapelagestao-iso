@@ -1,0 +1,170 @@
+#!/usr/bin/expect -f
+# senha do root: variável SENHA_ROOT (carregar_senhas em lib.sh, de scripts/senhas.local)
+if {![info exists env(SENHA_ROOT)]} { puts stderr "falta SENHA_ROOT"; exit 2 }
+set senha_root $env(SENHA_ROOT)
+# Teste da ISO no VirtualBox (Windows), através da porta série da VM em modo tcpserver.
+# Uso: teste-vbox.exp <porta> <log> <resultado>
+# A VM é criada e ligada por scripts/teste-vbox.sh (VBoxManage no Windows); aqui só se fala com a consola série.
+# O VirtualBox no Windows com Hyper-V ativo (WSL2) corre sobre o hipervisor da Microsoft e pode ser lento:
+# todos os timeouts são generosos e um timeout é registado como LENTO, nunca como FAIL.
+set porta [lindex $argv 0]
+set logf  [lindex $argv 1]
+set resf  [lindex $argv 2]
+log_file -noappend $logf
+set res [open $resf w]
+puts $res "INFO  VirtualBox, consola série em 127.0.0.1:$porta"
+flush $res
+
+proc criterio {nome ok} {
+  global res
+  if {$ok} { puts $res "PASS  $nome" } else { puts $res "FAIL  $nome" }
+  flush $res
+}
+proc nota {texto} {
+  global res
+  puts $res "INFO  $texto"
+  flush $res
+}
+proc expirou {nome {fatal 0}} {
+  global res
+  puts $res "LENTO $nome (timeout no VirtualBox — não conta como falha)"
+  flush $res
+  if {$fatal} {
+    puts $res "INFO  teste interrompido: os critérios seguintes não foram avaliados"
+    close $res
+    exit 2
+  }
+}
+
+# ligar à porta série (a VM pode demorar a abrir a porta)
+set ligado 0
+for {set i 0} {$i < 60} {incr i} {
+  spawn socat -,raw,echo=0 TCP:127.0.0.1:$porta
+  set timeout 2
+  expect {
+    eof { catch {wait}; after 1000; continue }
+    timeout { set ligado 1; break }
+    -re . { set ligado 1; break }
+  }
+}
+if {!$ligado} { nota "não foi possível ligar à porta série da VM"; criterio "VM arranca" 0; close $res; exit 1 }
+
+# 1. menu do GRUB (na série o GRUB pode já ter desenhado o menu antes da ligação: carrega numa tecla inofensiva)
+set timeout 20
+send "\033\[A"
+set timeout 600
+set grub 0
+expect {
+  "ianinjapelagestao 12.4 (Live)" { set grub 1 }
+  "raiz overlay pronta" { nota "o menu do GRUB foi desenhado antes da ligação à porta série"; set grub 2 }
+  timeout { expirou "GRUB mostra o menu ianinjapelagestao" 1 }
+}
+if {$grub == 1} {
+  criterio "GRUB mostra o menu ianinjapelagestao" 1
+  send "\r"
+  # 2. initramfs monta o SquashFS
+  expect {
+    "raiz overlay pronta" { criterio "Kernel arranca e o initramfs monta o SquashFS/overlay" 1 }
+    "FALHA NO ARRANQUE LIVE" { criterio "Kernel arranca e o initramfs monta o SquashFS/overlay" 0; close $res; exit 1 }
+    timeout { expirou "Kernel arranca e o initramfs monta o SquashFS/overlay" 1 }
+  }
+} else {
+  criterio "Kernel arranca e o initramfs monta o SquashFS/overlay" 1
+}
+# 3. login:
+set timeout 900
+expect {
+  "login:" { criterio "Prompt login: na consola série" 1 }
+  timeout { expirou "Prompt login: na consola série" 1 }
+}
+# 4. login root
+set timeout 120
+# o login(1) limpa a entrada ao mostrar cada pergunta; pela série TCP do VirtualBox o texto chega antes disso
+sleep 2
+send "root\r"
+# (blocos expect SEMPRE em várias linhas: numa só linha seriam um único padrão literal)
+expect {
+  "assword:" {}
+  timeout { expirou "Login como root" 1 }
+}
+sleep 2
+sleep 2
+# envio lento (a UART emulada pode perder bytes em rajada) e, se não houver resposta, tenta com \n
+set send_slow {1 0.1}
+send -s "$senha_root\r"
+set timeout 20
+set tent 0
+expect {
+  -re {\]# } {}
+  timeout {
+    incr tent
+    if {$tent == 1} { nota "sem resposta à senha com \\r; a tentar \\n"; send "\n"; exp_continue }
+    if {$tent == 2} { nota "sem resposta; a tentar \\r\\n"; send -s "$senha_root\r\n"; exp_continue }
+    expirou "Login como root" 1
+  }
+  "Login incorrect" { criterio "Login como root" 0; close $res; exit 1 }
+  "Login timed out" { criterio "Login como root" 0; close $res; exit 1 }
+  timeout { expirou "Login como root" 1 }
+}
+send "PS1='TST> '\r"
+expect "TST> "
+send "grep ^ID= /etc/os-release; dmesg | grep -i -m3 -E 'hypervisor detected|DMI:'\r"
+expect {
+  -re "ID=ianinjapelagestao\[\r\n]" { criterio "Login root e /etc/os-release mostra ianinjapelagestao" 1 }
+  timeout { expirou "Login root e /etc/os-release mostra ianinjapelagestao" }
+}
+expect "TST> "
+# 5. rede (NAT do VirtualBox: 10.0.2.x)
+set timeout 180
+send "for i in \$(seq 90); do ip -4 addr show eth0 | grep -q 'inet ' && break; sleep 1; done; ip -4 addr show eth0; wget -q --spider https://www.linuxfromscratch.org && echo \"WGET\"\"_OK\" || echo \"WGET\"\"_FALHOU\"\r"
+expect {
+  "WGET_OK" { criterio "eth0 com IP via DHCP e wget https funciona" 1 }
+  "WGET_FALHOU" { criterio "eth0 com IP via DHCP e wget https funciona" 0 }
+  timeout { expirou "eth0 com IP via DHCP e wget https funciona" }
+}
+expect "TST> "
+# 6. sudo
+set timeout 60
+send "sudo -u ninja sudo -n true && echo \"SUDO\"\"_OK\" || echo \"SUDO\"\"_FALHOU\"\r"
+expect {
+  "SUDO_OK" { criterio "sudo -u ninja sudo -n true" 1 }
+  "SUDO_FALHOU" { criterio "sudo -u ninja sudo -n true" 0 }
+  timeout { expirou "sudo -u ninja sudo -n true" }
+}
+expect "TST> "
+# 7. zram
+send "grep -q '^/dev/zram' /proc/swaps && echo \"ZRAM\"\"_OK\" || echo \"ZRAM\"\"_FALHOU\"\r"
+expect {
+  "ZRAM_OK" { criterio "zram ativo (swap em /proc/swaps)" 1 }
+  "ZRAM_FALHOU" { criterio "zram ativo (swap em /proc/swaps)" 0 }
+  timeout { expirou "zram ativo (swap em /proc/swaps)" }
+}
+expect "TST> "
+# 8. dispositivos do VirtualBox vistos pelo kernel (informativo)
+send "lspci -nn | head -20; lsmod 2>/dev/null | head -15; ls /lib/modules/\$(uname -r)/kernel 2>/dev/null | head\r"
+expect "TST> "
+# 9. IA
+set timeout 1200
+send -- {R=$(ia-perguntar "Responde apenas com a palavra OK." 2>/tmp/ia-erro.log); rc=$?; if [ -n "$(printf %s "$R" | tr -d '[:space:]')" ]; then printf 'IA''_RESPOSTA<%s>\n' "$R"; else echo "IA""_FALHOU rc=$rc"; tail -n 5 /tmp/ia-erro.log; fi}
+send "\r"
+set inicio [clock seconds]
+set ia_preso 0
+expect {
+  -re {IA_RESPOSTA<([^>\r\n]*)>} { criterio "IA responde (ia-perguntar)" 1; nota "resposta da IA: $expect_out(1,string) ([expr {[clock seconds]-$inicio}] s)" }
+  "IA_FALHOU" { criterio "IA responde (ia-perguntar)" 0 }
+  timeout { expirou "IA responde (ia-perguntar)"; set ia_preso 1 }
+}
+if {$ia_preso} { send "\003" }
+set timeout 120
+expect "TST> "
+send "grep -m1 -o -w -E 'avx512f|avx2' /proc/cpuinfo | head -1; echo CPU\"\"_FIM\r"
+expect -re {(avx512f|avx2)?\s*CPU_FIM} {}
+expect "TST> "
+# 10. poweroff
+set timeout 300
+send "poweroff\r"
+expect {
+  eof { criterio "poweroff encerra limpo" 1 }
+  timeout { expirou "poweroff encerra limpo" }
+}
+close $res

@@ -1,0 +1,376 @@
+#!/bin/bash
+# instalar-driver-nvidia — instala, a pedido, o driver oficial da NVIDIA. Por omissão o
+# ianinjapelagestao usa o nouveau (livre, já incluído); este comando deteta a placa, escolhe a
+# série certa, descarrega o instalador oficial (.run) de download.nvidia.com (versão fixada,
+# SHA-256 verificado), compila o módulo para o kernel em uso (headers em /lib/modules/<versão>/build),
+# põe o nouveau na lista negra e configura o Xorg.
+#
+# Uso: instalar-driver-nvidia            deteta, pergunta e instala
+#      instalar-driver-nvidia -l         só mostra as placas, a série recomendada e o estado
+#      instalar-driver-nvidia -s         não pergunta nada (aceita a licença da NVIDIA)
+#      instalar-driver-nvidia -f         reinstala mesmo que o driver já esteja ativo
+#      instalar-driver-nvidia -v VERSÃO  usa outra versão (SHA-256 lido de download.nvidia.com)
+#      instalar-driver-nvidia --ativar   troca já o nouveau pelo nvidia (reinicia a sessão gráfica)
+#
+#   Turing (GTX 16xx, RTX 20xx) e mais recentes  -> série atual, módulos abertos ("open")
+#   Maxwell, Pascal e Volta (GTX 750 a 1080 Ti)  -> série 580 (a última para elas), módulo proprietário
+#   Kepler e anteriores (GTX 600/700 antigas...) -> não há driver oficial para este kernel: fica o nouveau
+# Numa sessão live sem persistência (ia-criar-persistencia) a instalação perde-se ao desligar.
+#
+# Variáveis para testes (fora do sistema): IDN_LSPCI=<ficheiro com a saída de "lspci -Dnmm">
+# simula as placas; IDN_SEM_EXECUTAR=1 só descarrega, verifica e extrai (não instala nada);
+# IDN_CACHE=<dir> guarda os instaladores noutro sítio; IDN_SEM_SUDO=1 não usa sudo.
+set -uo pipefail
+export LC_ALL=${LC_ALL:-C.UTF-8}
+# modprobe, depmod e modinfo estão em /usr/sbin, que não está no PATH do utilizador ninja
+# (/etc/profile do LFS só o põe ao root; o atalho do menu também não passa pelo login)
+case ":$PATH:" in *:/usr/sbin:*) ;; *) PATH=$PATH:/usr/sbin ;; esac
+export PATH
+
+# --- versões fixadas (atualizar aqui: versão + SHA-256 do ficheiro .run.sha256sum oficial)
+VERSAO_ATUAL=620.70.06       # Turing e mais recentes (módulos abertos)
+VERSAO_580=580.196.07        # Maxwell, Pascal, Volta (última série com suporte)
+declare -A SHA256=(
+  [620.70.06]=20894d898b83622e385dcfb934dbd656471f09e38822770cf4c9fea4112990f3
+  [580.196.07]=2189c47fa87ae45b7a166b58c3742dd1629035069cb0fb4103ed375229c55867
+)
+BASE_URL=https://download.nvidia.com/XFree86/Linux-x86_64
+LICENCA_URL=https://www.nvidia.com/en-us/drivers/nvidia-license/
+ESPACO_MIB=2600              # .run (~400 MiB) + extraído (~1,2 GiB) + instalado (~600 MiB), com margem
+
+NOME=$(basename "$0")
+SEM_EXECUTAR=${IDN_SEM_EXECUTAR:-0}
+CACHE=${IDN_CACHE:-/var/cache/instalar-driver-nvidia}
+REGISTO=/var/log/instalar-driver-nvidia.log
+KV=$(uname -r)
+FORCAR=0
+SIM=0
+JANELA=0
+VERSAO_PEDIDA=
+
+if [ -t 1 ]; then
+  N=$'\e[1m'; V=$'\e[32m'; A=$'\e[33m'; E=$'\e[31m'; R=$'\e[0m'
+else
+  N=; V=; A=; E=; R=
+fi
+msg()   { echo "${N}==>${R} $*"; }
+ok()    { echo "${V}OK${R}  $*"; }
+aviso() { echo "${A}Aviso:${R} $*" >&2; }
+erro()  { echo "${E}$NOME:${R} $*" >&2; fim 1; }
+uso()   { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+# fim <código> — com --janela (atalho do menu) espera por Enter antes de fechar o terminal
+fim() {
+  if [ $JANELA = 1 ] && [ -t 0 ]; then
+    echo; read -r -p "Carregue em Enter para fechar esta janela. " _ || true
+  fi
+  exit "$1"
+}
+
+eh_root() { [ "$(id -u)" = 0 ]; }
+como_root() {
+  if eh_root || [ "${IDN_SEM_SUDO:-0}" = 1 ]; then "$@"; else sudo "$@"; fi
+}
+preparar_sudo() {
+  eh_root || [ "${IDN_SEM_SUDO:-0}" = 1 ] && return 0
+  type -P sudo > /dev/null || erro "é preciso o sudo (ou correr como root)"
+  sudo -v || erro "o sudo não autorizou"
+}
+
+sessao_live() { mountpoint -q /run/live/iso 2> /dev/null; }
+com_persistencia() { mountpoint -q /mnt/dados 2> /dev/null; }
+
+perguntar() { # perguntar "<pergunta>" -> 0 = sim (por omissão), 1 = não
+  [ $SIM = 1 ] || [ ! -t 0 ] && return 0
+  local r
+  read -r -p "$1 [S/n] " r
+  case $r in [nN]*) return 1 ;; esac
+  return 0
+}
+
+# --- deteção das placas: linhas "slot devid nome" das controladoras gráficas NVIDIA (classe 03xx)
+lspci_n() {
+  if [ -n "${IDN_LSPCI:-}" ]; then cat "$IDN_LSPCI"; else lspci -Dnmm 2> /dev/null; fi
+}
+placas_nvidia() {
+  local slot nome
+  lspci_n | awk -F'"' '$2 ~ /^03/ && tolower($4) == "10de" {split($1, s, " "); print s[1], tolower($6)}' |
+  while read -r slot dev; do
+    nome=
+    [ -z "${IDN_LSPCI:-}" ] && nome=$(lspci -s "$slot" -mm 2> /dev/null | awk -F'"' '{print $6}')
+    echo "$slot $dev ${nome:-NVIDIA [10de:$dev]}"
+  done
+}
+# outra placa gráfica (Intel/AMD) além da NVIDIA? -> portátil híbrido (PRIME)
+tem_outra_gpu() {
+  lspci_n | awk -F'"' '$2 ~ /^03/ && tolower($4) != "10de" {e=1} END {exit !e}'
+}
+
+# serie <devid hex> -> "atual" | "580" | "antiga" (intervalos de ids das listas supported-gpus.json
+# da NVIDIA: série atual a partir de 0x1e02 (Turing); 580.xx de 0x1340 a 0x1df6; o resto é legado)
+serie() {
+  local d=$((16#$1))
+  if [ $d -ge $((16#1e00)) ]; then echo atual
+  elif [ $d -ge $((16#1340)) ]; then echo 580
+  else echo antiga
+  fi
+}
+
+modulo_ativo() { [ -d /sys/module/nvidia ] && cat /sys/module/nvidia/version 2> /dev/null; }
+nouveau_ativo() { [ -d /sys/module/nouveau ]; }
+
+estado() {
+  local l slot dev nome s
+  msg "Placas gráficas NVIDIA"
+  mapfile -t PLACAS < <(placas_nvidia)
+  if [ ${#PLACAS[@]} = 0 ]; then
+    echo "  nenhuma (este computador não precisa do driver NVIDIA)"
+    return 1
+  fi
+  for l in "${PLACAS[@]}"; do
+    read -r slot dev nome <<< "$l"
+    s=$(serie "$dev")
+    case $s in
+      atual)  s="série $VERSAO_ATUAL, módulos abertos" ;;
+      580)    s="série $VERSAO_580 (legada), módulo proprietário" ;;
+      antiga) s="sem driver oficial para o kernel $KV (fica o nouveau)" ;;
+    esac
+    echo "  $slot  [10de:$dev]  $nome"
+    echo "      recomendado: $s"
+  done
+  tem_outra_gpu && echo "  (há também uma placa Intel/AMD: portátil híbrido — ver aviso PRIME na instalação)"
+  local v
+  v=$(modulo_ativo)
+  if [ -n "$v" ]; then
+    echo "Driver em uso: nvidia $v"
+  elif nouveau_ativo; then
+    echo "Driver em uso: nouveau (livre)"
+  else
+    echo "Driver em uso: nenhum módulo NVIDIA/nouveau carregado"
+  fi
+  if [ -f /etc/modprobe.d/nvidia-ianinja.conf ]; then
+    echo "Instalado por $NOME: $(cat /var/lib/instalar-driver-nvidia/versao 2> /dev/null || echo '?')"
+    [ -z "$v" ] && echo "  (ainda não ativo: corra '$NOME --ativar' ou reinicie, se tiver persistência)"
+  fi
+  return 0
+}
+
+# --- espaço: diretório de trabalho com espaço (no disco de persistência, se existir)
+livre_mib() {
+  local d=$1
+  while [ ! -d "$d" ]; do d=$(dirname "$d"); done
+  df -Pk "$d" | awk 'NR==2{print int($4/1024)}'
+}
+escolher_trabalho() {
+  local d
+  for d in ${IDN_TRABALHO:-} /mnt/dados/tmp /var/tmp /tmp; do
+    [ -n "$d" ] || continue
+    if [ "$(livre_mib "$d")" -ge $ESPACO_MIB ]; then echo "$d"; return 0; fi
+  done
+  return 1
+}
+
+# --- descarga verificada
+descarregar() { # descarregar <versão> -> caminho do .run
+  local v=$1 f url sha
+  f=NVIDIA-Linux-x86_64-$v-no-compat32.run
+  url=$BASE_URL/$v/$f
+  sha=${SHA256[$v]:-}
+  if [ -z "$sha" ]; then
+    sha=$(curl -fsSL --retry 3 "$url.sha256sum" | awk '{print $1}')
+    [[ $sha =~ ^[0-9a-f]{64}$ ]] || erro "não consegui obter o SHA-256 de $url.sha256sum (versão $v existe?)"
+    aviso "versão $v não fixada neste comando: SHA-256 lido do servidor da NVIDIA ($sha)"
+  fi
+  como_root mkdir -p "$CACHE" || erro "não consegui criar $CACHE"
+  como_root chmod 1777 "$CACHE"
+  if [ -f "$CACHE/$f" ] && echo "$sha  $CACHE/$f" | sha256sum -c --status; then
+    echo "Já descarregado e verificado: $CACHE/$f" >&2
+  else
+    msg "A descarregar $url (~400 MB)" >&2
+    curl -fL --retry 3 -C - --progress-bar -o "$CACHE/$f.part" "$url" >&2 ||
+      { rm -f "$CACHE/$f.part"; erro "falhou a descarga de $url"; }
+    echo "$sha  $CACHE/$f.part" | sha256sum -c --status ||
+      { rm -f "$CACHE/$f.part"; erro "SHA-256 errado em $f (apagado); esperado $sha"; }
+    mv "$CACHE/$f.part" "$CACHE/$f" || erro "não consegui mover $CACHE/$f.part"
+    echo "SHA-256 verificado: $sha" >&2
+  fi
+  echo "$CACHE/$f"
+}
+
+# a placa está na lista da própria versão descarregada (supported-gpus.json) sem "legacybranch"?
+placa_suportada() { # placa_suportada <dir extraído> <devid>
+  python3 - "$1/supported-gpus/supported-gpus.json" "$2" << 'EOF'
+import json, sys
+chips = json.load(open(sys.argv[1]))["chips"]
+dev = int(sys.argv[2], 16)
+m = [c for c in chips if int(c["devid"], 16) == dev]
+if not m:
+    print("não listada"); sys.exit(1)
+if any("legacybranch" in c for c in m) and not any("legacybranch" not in c for c in m):
+    print("só na série legada " + m[0]["legacybranch"]); sys.exit(1)
+print(m[0]["name"])
+EOF
+}
+
+opcao_existe() { # opcao_existe <dir extraído> <--opção>
+  grep -aq -- "${2#--}" "$1/nvidia-installer"   # texto da ajuda no binário (sem o executar)
+}
+
+configurar() { # configurar <versão> <hibrido 0/1>
+  como_root mkdir -p /etc/modprobe.d /etc/X11/xorg.conf.d /var/lib/instalar-driver-nvidia || return 1
+  como_root tee /etc/modprobe.d/nvidia-ianinja.conf > /dev/null << 'EOF'
+# Criado por instalar-driver-nvidia: o driver oficial da NVIDIA substitui o nouveau.
+# Para voltar ao nouveau: apague este ficheiro e /etc/X11/xorg.conf.d/10-nvidia.conf e reinicie.
+blacklist nouveau
+options nouveau modeset=0
+options nvidia-drm modeset=1 fbdev=1
+EOF
+  como_root tee /etc/X11/xorg.conf.d/10-nvidia.conf > /dev/null << 'EOF'
+# Criado por instalar-driver-nvidia: a placa servida pelo nvidia-drm usa o driver "nvidia" do Xorg
+# e é a placa principal (num portátil híbrido os ecrãs ligados à Intel/AMD passam a ser saídas
+# do NVIDIA através do PRIME, configurado em /etc/lightdm/lightdm.conf.d/50-nvidia-prime.conf).
+Section "OutputClass"
+    Identifier "nvidia"
+    MatchDriver "nvidia-drm"
+    Driver "nvidia"
+    Option "AllowEmptyInitialConfiguration"
+    Option "PrimaryGPU" "yes"
+EndSection
+EOF
+  if [ "$2" = 1 ]; then
+    como_root mkdir -p /etc/lightdm/lightdm.conf.d || return 1
+    como_root tee /etc/lightdm/lightdm.conf.d/50-nvidia-prime.conf > /dev/null << 'EOF'
+# Criado por instalar-driver-nvidia (portátil híbrido): o NVIDIA desenha, os ecrãs ligados à
+# placa Intel/AMD (modesetting) mostram a imagem através do PRIME.
+[Seat:*]
+display-setup-script=/usr/lib/instalar-driver-nvidia/prime-saida
+EOF
+  fi
+  echo "$1" | como_root tee /var/lib/instalar-driver-nvidia/versao > /dev/null
+}
+
+# --- ativar já: sai da sessão gráfica (nível 3), troca o nouveau pelo nvidia e volta ao nível 5.
+# Corre como root, desligado do terminal (o terminal fecha-se com a sessão gráfica).
+ativar_agora() {
+  [ -x /usr/lib/instalar-driver-nvidia/trocar-driver ] || erro "falta /usr/lib/instalar-driver-nvidia/trocar-driver"
+  modinfo -k "$KV" nvidia > /dev/null 2>&1 || erro "o módulo nvidia não está instalado para o kernel $KV (corra primeiro $NOME)"
+  if [ -n "$(modulo_ativo)" ]; then ok "o driver nvidia $(modulo_ativo) já está ativo"; return 0; fi
+  echo "A sessão gráfica vai ser reiniciada: guarde o seu trabalho e feche as aplicações."
+  echo "O ecrã fica preto alguns segundos; depois volta o ecrã de início de sessão."
+  echo "Registo: $REGISTO"
+  perguntar "Reiniciar a sessão gráfica agora?" || { echo "Pode fazê-lo mais tarde com: $NOME --ativar"; return 0; }
+  preparar_sudo
+  como_root setsid -f /usr/lib/instalar-driver-nvidia/trocar-driver < /dev/null >> "$REGISTO" 2>&1 ||
+    erro "não consegui lançar a troca de driver"
+  echo "A trocar de driver..."
+  sleep 30
+}
+
+instalar() {
+  local l slot dev nome s v tipo run trab pkg ok_placa hib=0 opts
+  estado || { echo "Nada a fazer."; return 0; }
+  read -r slot dev nome <<< "${PLACAS[0]}"
+  [ ${#PLACAS[@]} -gt 1 ] && aviso "há ${#PLACAS[@]} placas NVIDIA; a série é escolhida pela primeira ($nome)"
+  s=$(serie "$dev")
+  case $s in
+    atual) v=${VERSAO_PEDIDA:-$VERSAO_ATUAL}; tipo=open ;;
+    580)   v=${VERSAO_PEDIDA:-$VERSAO_580};   tipo=proprietary ;;
+    antiga)
+      echo
+      echo "A $nome é de uma geração (Kepler ou anterior) que a NVIDIA só suporta nas séries"
+      echo "legadas 470/390/340, que já não compilam com o kernel $KV."
+      echo "Continue com o nouveau (livre, já ativo): aceleração 3D básica e todas as resoluções."
+      return 1 ;;
+  esac
+  if [ -n "$(modulo_ativo)" ] && [ $FORCAR = 0 ]; then
+    ok "o driver nvidia $(modulo_ativo) já está ativo (use -f para reinstalar)"
+    return 0
+  fi
+  tem_outra_gpu && hib=1
+
+  echo
+  msg "Vai ser instalado o driver NVIDIA $v (módulo $( [ $tipo = open ] && echo "aberto" || echo "proprietário"))"
+  echo "  O driver é distribuído pela NVIDIA com a sua própria licença: $LICENCA_URL"
+  echo "  Ao continuar aceita essa licença. A descarga é feita de download.nvidia.com."
+  if sessao_live && ! com_persistencia; then
+    echo
+    echo "${A}################################################################${R}"
+    echo "  Sessão live SEM persistência: o driver fica na memória RAM e PERDE-SE"
+    echo "  ao desligar ou reiniciar (será preciso instalá-lo de novo)."
+    echo "  Para o guardar: sudo ia-criar-persistencia /dev/<partição>, reinicie"
+    echo "  e volte a correr $NOME."
+    echo "${A}################################################################${R}"
+  fi
+  [ $hib = 1 ] && aviso "portátil híbrido (Intel/AMD + NVIDIA): o NVIDIA passa a desenhar tudo (PRIME); se o ecrã interno ficar preto, volte ao nouveau (ver /etc/modprobe.d/nvidia-ianinja.conf)"
+  perguntar "Continuar?" || { echo "Cancelado."; return 1; }
+
+  # pré-requisitos: headers do kernel, compilador
+  [ $SEM_EXECUTAR = 1 ] || [ -f /lib/modules/$KV/build/Makefile ] || erro "faltam os headers do kernel $KV em /lib/modules/$KV/build"
+  for c in gcc cc make ld curl sha256sum python3 modprobe depmod modinfo; do
+    type -P $c > /dev/null || erro "falta o comando $c"
+  done
+  trab=$(escolher_trabalho) || erro "espaço insuficiente: são precisos ~$ESPACO_MIB MiB livres em /var/tmp ou /tmp (numa sessão live é a RAM)"
+  [ $SEM_EXECUTAR = 1 ] || preparar_sudo
+  curl -sS -o /dev/null -I --max-time 15 $BASE_URL/ 2> /dev/null || erro "sem acesso a download.nvidia.com (ligue a rede: ligar-wifi)"
+
+  run=$(descarregar "$v") || return 1
+  pkg=$trab/nvidia-$v.$$
+  rm -rf "$pkg"
+  msg "A extrair para $pkg"
+  sh "$run" --extract-only --target "$pkg" > /dev/null || erro "falhou a extração de $run"
+  trap "como_root rm -rf '$pkg'" EXIT
+  ok_placa=$(placa_suportada "$pkg" "$dev") || erro "a versão $v não suporta esta placa ($ok_placa)"
+  ok "placa suportada pela versão $v: $ok_placa"
+  if [ $SEM_EXECUTAR = 1 ]; then
+    ok "IDN_SEM_EXECUTAR=1: descarregado, verificado e extraído; nada instalado"
+    return 0
+  fi
+
+  opts=(--accept-license --silent --kernel-module-type=$tipo --kernel-source-path=/lib/modules/$KV/build
+        --no-x-check --skip-module-load --no-rebuild-initramfs --no-systemd --no-distro-scripts
+        --no-kernel-module-source --tmpdir="$trab" --log-file-name=/var/log/nvidia-installer.log)
+  # o nouveau está carregado (é o driver em uso): o instalador não o pode descarregar agora
+  if opcao_existe "$pkg" --no-incompatible-kernel-module-check; then
+    opts+=(--no-incompatible-kernel-module-check)
+  elif opcao_existe "$pkg" --no-nouveau-check; then
+    opts+=(--no-nouveau-check)
+  fi
+  msg "A compilar o módulo para o kernel $KV e a instalar (alguns minutos)"
+  como_root env IGNORE_PREEMPT_RT_PRESENCE=1 "$pkg/nvidia-installer" "${opts[@]}" ||
+    erro "o instalador da NVIDIA falhou (ver /var/log/nvidia-installer.log)"
+  como_root depmod -a "$KV"
+  modinfo -k "$KV" nvidia > /dev/null 2>&1 || erro "o módulo nvidia não ficou instalado (ver /var/log/nvidia-installer.log)"
+  configurar "$v" $hib || erro "não consegui escrever a configuração (modprobe.d / xorg.conf.d)"
+  ok "driver NVIDIA $v instalado; nouveau na lista negra; Xorg configurado"
+  echo "Para voltar ao nouveau: sudo nvidia-uninstall (ou apague /etc/modprobe.d/nvidia-ianinja.conf e /etc/X11/xorg.conf.d/10-nvidia.conf) e reinicie."
+  como_root rm -rf "$pkg"; trap - EXIT
+  sessao_live && ! com_persistencia && como_root rm -f "$run"   # liberta ~400 MiB de RAM
+  echo
+  if nouveau_ativo; then
+    echo "O nouveau ainda está em uso. Para usar já o driver NVIDIA a sessão gráfica tem de ser reiniciada"
+    echo "(sem persistência NÃO reinicie o computador: perderia a instalação)."
+    ativar_agora
+  else
+    echo "Reinicie a sessão gráfica (ou corra $NOME --ativar) para carregar o driver."
+  fi
+}
+
+ATIVAR=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    -h|--help|--ajuda) uso 0 ;;
+    -l|--lista|--estado) estado; exit 0 ;;
+    -s|--sim) SIM=1 ;;
+    -f|--forcar) FORCAR=1 ;;
+    -v|--versao) shift; [[ ${1:-} =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || erro "versão inválida: ${1:-}"; VERSAO_PEDIDA=$1 ;;
+    --ativar) ATIVAR=1 ;;
+    --janela) JANELA=1 ;;
+    *) erro "opção desconhecida: $1 (ver $NOME -h)" ;;
+  esac
+  shift
+done
+
+if [ $ATIVAR = 1 ]; then
+  ativar_agora; fim $?
+fi
+instalar; fim $?

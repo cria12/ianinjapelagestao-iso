@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Face Finder: analisar fotos/",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/face_finder.py",
+            "args": ["fotos", "-o", "saida", "--limiar", "0.8"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Face Finder: interface gráfica",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/face_finder_gui.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Python: ficheiro aberto",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Testes (unittest)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "unittest",
+            "args": ["discover", "-s", "tests", "-v"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

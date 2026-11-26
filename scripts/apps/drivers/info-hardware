@@ -1,0 +1,146 @@
+#!/bin/bash
+# info-hardware — mostra o hardware que o ianinjapelagestao reconhece e o driver em uso: placas
+# gráficas (kernel e OpenGL), Vulkan, som, Bluetooth, rede sem fios e periféricos USB (teclados,
+# ratos e headsets gaming: Razer, HyperX, Logitech, SteelSeries, Corsair...).
+# Uso: info-hardware [-c]      (-c: completo — lista também todos os dispositivos USB e PCI)
+#      info-hardware --janela  (atalho do menu: espera por Enter no fim)
+export LC_ALL=${LC_ALL:-C.UTF-8}
+completo=0 janela=0
+for a in "$@"; do
+  case $a in
+    -c|--completo) completo=1 ;;
+    --janela) janela=1 ;;
+    -h|--help|--ajuda) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "info-hardware: opção desconhecida $a (ver -h)" >&2; exit 1 ;;
+  esac
+done
+if [ -t 1 ]; then N=$'\e[1m'; R=$'\e[0m'; else N=; R=; fi
+sec() { echo; echo "${N}== $*${R}"; }
+tem() { type -P "$1" > /dev/null; }
+
+sec "Sistema"
+echo "Kernel:        $(uname -r)"
+echo "Processador:   $(awk -F': ' '/^model name/{print $2; exit}' /proc/cpuinfo) ($(nproc) lógicos)"
+echo "Memória:       $(awk '/^MemTotal/{printf "%.1f GiB", $2/1048576}' /proc/meminfo)"
+if mountpoint -q /run/live/iso 2> /dev/null; then
+  mountpoint -q /mnt/dados 2> /dev/null && echo "Sessão:        live com persistência (/mnt/dados)" || echo "Sessão:        live sem persistência (alterações perdem-se ao desligar)"
+fi
+
+sec "Placas gráficas (driver do kernel)"
+if tem lspci; then
+  lspci -Dnn -k 2> /dev/null | awk '
+    /^[0-9a-f]{4}:/ { mostrar = ($0 ~ /(VGA|3D|Display) controller/); if (mostrar) { sub(/^[^ ]+ /, ""); print "  " $0 } ; next }
+    mostrar && /Kernel driver in use/ { sub(/^[ \t]+/, ""); sub("Kernel driver in use", "driver em uso"); print "      " $0 }
+    mostrar && /Kernel modules/       { sub(/^[ \t]+/, ""); sub("Kernel modules", "módulos possíveis"); print "      " $0 }'
+  if lspci -n 2> /dev/null | awk '$2 ~ /^03/ && $3 ~ /^10de:/ {e=1} END {exit !e}'; then
+    if [ -d /sys/module/nvidia ]; then
+      echo "  NVIDIA: driver oficial $(cat /sys/module/nvidia/version) ativo"
+    else
+      echo "  NVIDIA: a usar o nouveau (livre). Driver oficial a pedido: instalar-driver-nvidia"
+    fi
+  fi
+else
+  echo "  (lspci não encontrado)"
+fi
+
+sec "OpenGL"
+if [ -n "${DISPLAY:-}" ] && tem glxinfo; then
+  glxinfo -B 2> /dev/null | grep -E 'OpenGL (vendor|renderer|core profile version|version) string|direct rendering|Accelerated|Video memory' | sed 's/^ */  /'
+else
+  echo "  (sem sessão gráfica: corra no terminal do ambiente gráfico para ver o OpenGL)"
+fi
+
+sec "Vulkan"
+if tem vulkaninfo; then
+  vulkaninfo --summary 2> /dev/null | awk '/^Devices:/ {d=1} d && /(deviceName|driverName|driverInfo|apiVersion|deviceType)/ {sub(/^[ \t]+/, ""); print "  " $0}' | head -24
+  ls /usr/share/vulkan/icd.d/ 2> /dev/null | sed 's/^/  ICD instalado: /'
+else
+  echo "  (vulkaninfo não instalado)"
+fi
+
+sec "Som"
+if [ -r /proc/asound/cards ] && grep -q '[0-9] \[' /proc/asound/cards; then
+  sed 's/^/  /' /proc/asound/cards | grep -v '^ *$'
+  grep -l . /proc/asound/card*/usbid 2> /dev/null | while read -r u; do
+    echo "  USB áudio: $(cat "$u") (headset/placa USB: snd-usb-audio)"
+  done
+else
+  echo "  nenhuma placa de som reconhecida"
+fi
+
+sec "Periféricos gaming e de entrada"
+declare -A MARCA=([1532]="Razer" [0951]="HyperX (Kingston)" [03f0]="HP / HyperX" [046d]="Logitech"
+                  [1038]="SteelSeries" [1b1c]="Corsair" [1e7d]="ROCCAT/Turtle Beach" [3434]="Keychron"
+                  [045e]="Microsoft (comando Xbox...)" [054c]="Sony (comando PlayStation)" [057e]="Nintendo" [28de]="Valve (Steam)")
+encontrou=0
+for d in /sys/bus/usb/devices/*; do
+  [ -r "$d/idVendor" ] || continue
+  v=$(cat "$d/idVendor"); p=$(cat "$d/idProduct")
+  [ -n "${MARCA[$v]:-}" ] || continue
+  encontrou=1
+  nome="$(cat "$d/manufacturer" 2> /dev/null) $(cat "$d/product" 2> /dev/null)"
+  drv=$(for i in "$d"/*:*/driver; do [ -e "$i" ] && basename "$(readlink "$i")"; done | sort -u | tr '\n' ' ')
+  echo "  ${MARCA[$v]}: $nome [$v:$p]  drivers: ${drv:-nenhum}"
+done
+[ $encontrou = 1 ] || echo "  nenhum periférico de marcas gaming conhecidas ligado por USB"
+if tem headsetcontrol; then
+  h=$(headsetcontrol -b 2> /dev/null | grep -iE 'found|battery|bateria|level' | head -3)
+  [ -n "$h" ] && echo "$h" | sed 's/^/  headsetcontrol: /'
+fi
+if [ -d /sys/module/razerkbd ] || [ -d /sys/module/razermouse ] || [ -d /sys/module/razerkraken ] || [ -d /sys/module/razeraccessory ]; then
+  echo "  OpenRazer: módulos carregados ($(ls -d /sys/module/razer* 2> /dev/null | xargs -n1 basename | tr '\n' ' '))"
+  pgrep -f openrazer-daemon > /dev/null && echo "  OpenRazer: serviço a correr (comando: openrazer -l)" || echo "  OpenRazer: serviço parado (inicia-se com: openrazer-daemon)"
+fi
+echo "  Ratos/teclados/touchpads:"
+grep -E '^N: Name=' /proc/bus/input/devices 2> /dev/null | sed 's/^N: Name="\(.*\)"/    \1/' | grep -viE 'power button|sleep button|video bus|pc speaker|hda |hdmi|lid switch' | sort -u
+
+sec "Bluetooth"
+if [ -d /sys/class/bluetooth ] && ls /sys/class/bluetooth/ 2> /dev/null | grep -q hci; then
+  for h in /sys/class/bluetooth/hci*; do echo "  $(basename "$h"): $(cat "$h/device/../product" 2> /dev/null || echo adaptador)"; done
+  pgrep -x bluetoothd > /dev/null && echo "  serviço bluetoothd a correr (gestor: blueman-manager ou bluetoothctl)" || echo "  serviço parado: sudo /etc/rc.d/init.d/bluetooth start"
+else
+  echo "  nenhum adaptador Bluetooth"
+fi
+
+sec "Rede (Wi-Fi e cabo; gestão: ícone de rede na barra superior, nmtui ou ligar-wifi)"
+w=0 nm=0
+tem nmcli && nmcli -t -f RUNNING general > /dev/null 2>&1 && nm=1
+for i in /sys/class/net/*; do
+  [ -e "$i/device" ] || continue          # só placas físicas (não lo, pontes, VPN)
+  n=$(basename "$i") tipo=cabo
+  if [ -d "$i/wireless" ] || [ -e "$i/phy80211" ]; then tipo=Wi-Fi; w=1; fi
+  drv=$(basename "$(readlink -f "$i/device/driver")" 2> /dev/null)
+  case $(basename "$(readlink -f "$i/device/subsystem")" 2> /dev/null) in
+    usb) u=$(readlink -f "$i/device/.."); bus="USB $(cat "$u/idVendor" 2> /dev/null):$(cat "$u/idProduct" 2> /dev/null)"
+         nome="$(cat "$u/manufacturer" 2> /dev/null) $(cat "$u/product" 2> /dev/null)" ;;
+    pci) bus="PCI $(sed 's/^0x//' "$i/device/vendor"):$(sed 's/^0x//' "$i/device/device")"
+         nome=$(tem lspci && lspci -s "$(basename "$(readlink -f "$i/device")")" 2> /dev/null | sed 's/^[^ ]* [^:]*: //') ;;
+    *) bus=outro nome= ;;
+  esac
+  echo "  $n ($tipo, $bus): ${nome:-?}"
+  echo "      driver: ${drv:-nenhum}"
+  if [ $nm = 1 ]; then
+    nmcli -g GENERAL.FIRMWARE-VERSION,GENERAL.STATE,GENERAL.CONNECTION device show "$n" 2> /dev/null |
+      paste -sd'|' | awk -F'|' '{ printf "      firmware: %s\n      estado: %s%s\n", ($1 == "" ? "-" : $1), $2, ($3 == "" ? "" : " (" $3 ")") }'
+  fi
+done
+[ $w = 1 ] || echo "  nenhuma placa Wi-Fi reconhecida (adaptador USB? veja 'info-hardware -c' e lsusb)"
+# adaptadores USB de fabricantes de Wi-Fi sem nenhum driver associado (ex.: RTL8852BU/8851BU com o kernel 6.16)
+for u in /sys/bus/usb/devices/*; do
+  [ -f "$u/idVendor" ] || continue
+  case $(cat "$u/idVendor") in 0bda|148f|0e8d|2357|0cf3|7392|2001|0b05|13b1|050d|0846|2604|35bc|056e|07b8|20f4) ;; *) continue ;; esac
+  ls -d "$u"/*:*/driver > /dev/null 2>&1 && continue
+  [ "$(cat "$u/bDeviceClass" 2> /dev/null)" = 09 ] && continue
+  echo "  ${N}AVISO${R}: USB $(cat "$u/idVendor"):$(cat "$u/idProduct") $(cat "$u/product" 2> /dev/null) sem driver (adaptador sem suporte neste kernel?)"
+done
+[ $nm = 1 ] || echo "  NetworkManager parado: sudo /etc/rc.d/init.d/networkmanager start"
+
+if [ $completo = 1 ]; then
+  sec "Todos os dispositivos PCI"; tem lspci && lspci -nn | sed 's/^/  /'
+  sec "Todos os dispositivos USB"; tem lsusb && lsusb | sed 's/^/  /'
+fi
+
+if [ $janela = 1 ] && [ -t 0 ]; then
+  echo; read -r -p "Carregue em Enter para fechar esta janela. " _
+fi
+exit 0

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Compositor automático
+Comment=Desliga o compositor do xfwm4 em modo gráfico de compatibilidade (desenho por software)
+Exec=/usr/bin/ianinja-compositor-auto
+OnlyShowIn=XFCE;
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

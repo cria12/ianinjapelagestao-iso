@@ -1,0 +1,6 @@
+#!/bin/sh
+# blueman-se-houver — arranque automático (XDG autostart) do blueman-applet na sessão gráfica,
+# só se houver um adaptador Bluetooth (/sys/class/bluetooth/hciN): sem ele não gasta memória
+# (o applet é Python + GTK, dezenas de MiB). Instalado por scripts/apps/funcoes-10.sh.
+ls -d /sys/class/bluetooth/hci* > /dev/null 2>&1 || exit 0
+exec /usr/bin/blueman-applet "$@"

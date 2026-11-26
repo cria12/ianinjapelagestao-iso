@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Assistente de configuração do ianinjapelagestao
+Comment=1.º arranque: cria a conta do utilizador; depois passa ao LightDM GTK Greeter
+Exec=/usr/libexec/ianinja-assistente/greeter
+Type=Application

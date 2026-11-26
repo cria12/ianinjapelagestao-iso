@@ -1,0 +1,27 @@
+#!/bin/bash
+# /usr/libexec/ianinja-assistente/greeter — greeter do LightDM (greeter-session=ianinja-assistente,
+# /etc/lightdm/lightdm.conf.d/60-ianinja-assistente.conf). Corre como o utilizador lightdm.
+# Enquanto o sistema não estiver configurado mostra o Assistente de configuração; em todos os
+# outros casos (configurado, ianinja.assistente=0, a experimentar, erro, sudo indisponível) faz
+# exec do lightdm-gtk-greeter de sempre (o pidof lightdm-gtk-greeter continua a funcionar).
+# Se o assistente arrancar 3 vezes no mesmo arranque (ex.: a falhar), passa ao greeter normal.
+shopt -s execfail
+GTK=/usr/bin/lightdm-gtk-greeter
+CONT=/var/lib/lightdm/.ianinja-assistente-tentativas
+estado=$(timeout 20 /usr/bin/sudo -n /usr/libexec/ianinja-assistente/aplicar estado 2>/dev/null)
+echo "ianinja-assistente: estado: ${estado:-desconhecido (sudo falhou)}" >&2
+if [ "${estado%% *}" = ativo ]; then
+  boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+  b=; n=0
+  read -r b n 2>/dev/null < $CONT
+  [ "$b" = "$boot" ] || n=0
+  case $n in ''|*[!0-9]*) n=0 ;; esac
+  if [ $n -lt 3 ]; then
+    echo "$boot $((n + 1))" > $CONT 2>/dev/null
+    exec /usr/bin/python3 -I /usr/share/ianinja-assistente/assistente.py --greeter
+    echo "ianinja-assistente: python3 não arrancou" >&2
+  else
+    echo "ianinja-assistente: já arrancou $n vezes neste arranque; greeter normal" >&2
+  fi
+fi
+exec $GTK "$@"

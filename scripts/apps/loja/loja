@@ -1,0 +1,3 @@
+#!/bin/sh
+# loja — abre a Loja de aplicações (Flatpak + Flathub). Programa em /usr/share/loja.
+exec python3 /usr/share/loja/loja.py "$@"

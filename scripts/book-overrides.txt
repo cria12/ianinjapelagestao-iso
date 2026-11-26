@@ -1,0 +1,68 @@
+# página                       tipo     blocos  # motivo
+# tipos: skip | test (corre, falhas não param a build) | must | replace (scripts/replace/<livro>-<cap>-<pag>.<n>.sh)
+
+# --- Cap. 7
+lfs/chapter07/createfiles       skip     6       # exec /usr/bin/bash --login: só renova o prompt interativo; cada script já usa bash novo
+lfs/chapter07/chroot            skip     1       # a entrada no chroot é feita pelo orquestrador (scripts/chroot-run.sh) com o mesmo env -i do livro
+
+# --- Cap. 8
+lfs/chapter08/glibc             test     8       # grep "Timed out" devolve 1 quando não há timeouts (resultado desejado)
+lfs/chapter08/binutils          replace  5       # grep "^FAIL:" devolve 1 quando não há falhas -> "|| true" (lista as falhas sem parar a build)
+lfs/chapter08/gmp               skip     1       # exemplo "ABI=32 ./configure ..." só para CPUs de 32 bits (não é um comando)
+lfs/chapter08/groff             replace  1       # PAGE=<paper_size> -> PAGE=A4 (Portugal)
+lfs/chapter08/stripping         replace  1       # strip devolve erro em ficheiros não-ELF (o livro diz para ignorar) -> "|| true" no ciclo final
+lfs/chapter08/bash              test     4       # test suite (começa por LC_ALL=..., não foi detetada automaticamente)
+lfs/chapter08/openssl           test     3       # test suite (HARNESS_JOBS=... make test)
+lfs/chapter08/perl              test     4       # test suite (TEST_JOBS=... make test_harness)
+lfs/chapter08/util-linux        test     3       # test suite (tests/run.sh)
+lfs/chapter08/glibc             replace  17      # alternativa "instalar todos os locales" substituída pelos locales da distro (pt_PT.UTF-8, en_US.UTF-8)
+lfs/chapter08/glibc             skip     20      # tzselect é interativo; fuso já decidido: Europe/Lisbon
+lfs/chapter08/glibc             replace  21      # /usr/share/zoneinfo/<xxx> -> Europe/Lisbon
+lfs/chapter08/bash              skip     6       # exec /usr/bin/bash --login (interativo)
+lfs/chapter08/shadow            replace  10      # passwd root é interativo -> chpasswd com a senha definida na Secção 3
+lfs/chapter08/vim               skip     10      # vim -c ':options' abre o editor (apenas documentação)
+lfs/chapter08/cleanup           test     1       # rm -rf /tmp/{*,.*} devolve erro por '.' e '..' (efeito pretendido é obtido)
+
+# --- BLFS (F8)
+blfs/postlfs/make-ca            skip     3       # não há cron no sistema (sem /etc/cron.weekly); atualizar certificados à mão com make-ca -g
+blfs/postlfs/make-ca            skip     4,5     # exemplos de certificados locais (CAcert / Makebelieve) — só ilustrativos
+blfs/postlfs/make-ca            skip     6       # export interativo para a sessão atual; o bloco 7 (/etc/profile.d/pythoncerts.sh) torna-o permanente
+blfs/postlfs/linux-pam          skip     1       # só se aplica se docbook/libxslt/lynx estiverem instalados para gerar a documentação (não estão)
+blfs/postlfs/linux-pam          replace  3       # cria /etc/pam.d/other temporário E corre o "ninja test" indicado no texto (falhas toleradas)
+blfs/basicnet/dhcpcd            skip     1       # utilizador/grupo de privilege separation — o livro usa --disable-privsep (bloco 2)
+blfs/basicnet/dhcpcd            skip     3       # alternativa com privilege separation (o livro recomenda o bloco 2)
+blfs/basicnet/dhcpcd            replace  5       # make install-service-dhcpcd tem de correr no diretório do blfs-bootscripts
+blfs/basicnet/dhcpcd            replace  6       # modelo com <placeholders>: substituído por DHCP_START="-b -q -h $HOSTNAME" / DHCP_STOP="-k"
+blfs/basicnet/dhcpcd            skip     7       # exemplo de configuração estática (a ISO usa DHCP)
+blfs/basicnet/dhcpcd            skip     8       # resolv.conf.head opcional com servidores OpenDNS (usam-se os DNS do DHCP)
+blfs/postlfs/openssh            replace  1       # utilizador/grupo sshd criados só se não existirem (permite repetir o passo)
+blfs/postlfs/openssh            skip     5       # ssh-keygen/ssh-copy-id interativos para um host remoto (REMOTE_USERNAME@REMOTE_HOSTNAME)
+blfs/postlfs/openssh            skip     6       # desativar login por senha deixaria a ISO inacessível por ssh (não há chaves autorizadas)
+blfs/postlfs/openssh            replace  8       # make install-sshd tem de correr no diretório do blfs-bootscripts
+blfs/general/cpio               skip     3,5     # documentação PDF/PS precisa de texlive (não instalado)
+blfs/general/popt               skip     2,4     # documentação API precisa de Doxygen (não instalado)
+blfs/general/libusb             skip     2,4     # documentação API precisa de Doxygen (não instalado)
+blfs/general/which              skip     3       # alternativa ao programa which (script com type -pa) — instala-se o programa
+blfs/general/git                skip     2,3,5,6 # gerar/instalar man e html precisa de asciidoc/xmlto (não instalados)
+blfs/general/git                skip     7,8,9   # documentação pré-gerada (git-manpages/htmldocs) sem MD5 no livro; omitida para poupar espaço na ISO
+blfs/postlfs/profile            replace  9       # <ll>_<CC>.<charmap> -> pt_PT.UTF-8 (locale da distro, como no Cap. 9.7)
+blfs/postlfs/profile            replace  10      # /etc/bashrc do livro com prompt \u@\h (ex.: ninja@ianinjapelagestao)
+blfs/postlfs/skel               replace  1       # useradd -m <newuser> -> povoa /etc/skel e cria o utilizador ninja (idempotente)
+blfs/postlfs/skel               skip     2,3     # exemplos com <username>/<UID>/<GID> para acertar IDs de utilizadores já existentes
+
+# --- BLFS (F8b — inteligência artificial)
+blfs/general/cmake              replace  1       # libarchive/libuv/nghttp2 (recomendadas) não instaladas -> cópias internas do CMake; bootstrap paralelo
+
+# --- BLFS (F8c — drivers e firmware: Wi-Fi e som)
+blfs/basicnet/libnl             skip     3       # documentação API (libnl-doc, download adicional) — omitida para poupar espaço na ISO
+blfs/basicnet/wpa_supplicant    skip     2       # interface D-Bus: o D-Bus não está instalado (sem NetworkManager/ambiente gráfico)
+blfs/basicnet/wpa_supplicant    skip     5       # ficheiros de serviço D-Bus (D-Bus não instalado)
+blfs/basicnet/wpa_supplicant    skip     6       # wpa_passphrase SSID é interativo (pede a senha) — feito em tempo de execução pelo ligar-wifi
+blfs/basicnet/wpa_supplicant    replace  7       # make install-service-wpa tem de correr no diretório do blfs-bootscripts
+blfs/basicnet/wpa_supplicant    replace  8       # modelo com <placeholders>: /etc/sysconfig/ifconfig.wlan0 com ONBOOT="no" e DHCP_START="-b -q -h $HOSTNAME"
+blfs/basicnet/wpa_supplicant    skip     9       # alternativa com IP estático (a ISO usa DHCP)
+blfs/basicnet/wpa_supplicant    skip     10      # ifup wifi0 é para o sistema em execução (o chroot não tem placa Wi-Fi)
+blfs/multimedia/alsa-lib        skip     3,5     # documentação API precisa de Doxygen (não instalado)
+blfs/multimedia/alsa-utils      skip     3,4     # alsactl init/store precisam de uma placa de som (não há no chroot); feitos no arranque pelo bootscript alsa
+blfs/multimedia/alsa-utils      skip     5       # exemplo de /etc/asound.conf para a placa 1 (depende do hardware)
+blfs/multimedia/alsa-utils      replace  6       # make install-alsa no diretório do blfs-bootscripts; restauro sem estado gravado não dá FAIL

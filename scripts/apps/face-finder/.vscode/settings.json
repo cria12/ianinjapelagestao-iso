@@ -1,0 +1,17 @@
+{
+    "python.defaultInterpreterPath": "/usr/bin/python3",
+    "python.testing.unittestEnabled": true,
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestArgs": ["-v", "-s", "./tests", "-p", "test_*.py"],
+    "python.analysis.extraPaths": ["${workspaceFolder}"],
+    "files.exclude": {
+        "**/__pycache__": true
+    },
+    "files.watcherExclude": {
+        "**/saida/**": true
+    },
+    "editor.rulers": [110],
+    "[python]": {
+        "editor.tabSize": 4
+    }
+}

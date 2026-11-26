@@ -1,0 +1,36 @@
+libwnck|pacote xfce/libwnck
+libdisplay-info|pacote general/libdisplay-info
+xfce4-dev-tools|pacote xfce/xfce4-dev-tools
+libxfce4util|pacote xfce/libxfce4util
+xfconf|pacote xfce/xfconf
+libxfce4ui|pacote xfce/libxfce4ui
+libxfce4windowing|pacote xfce/libxfce4windowing
+desktop-file-utils|pacote general/desktop-file-utils
+exo|pacote xfce/exo
+garcon|pacote xfce/garcon
+xfce4-panel|pacote xfce/xfce4-panel
+xfce4-session|pacote xfce/xfce4-session
+xfwm4|pacote xfce/xfwm4
+libnotify|pacote x/libnotify
+libgudev|pacote general/libgudev
+thunar|pacote xfce/thunar
+xfdesktop|pacote xfce/xfdesktop
+libogg|pacote multimedia/libogg
+libvorbis|pacote multimedia/libvorbis
+sound-theme-freedesktop|pacote multimedia/sound-theme-freedesktop
+libcanberra|pacote multimedia/libcanberra
+libxklavier|pacote x/libxklavier
+xfce4-settings|pacote xfce/xfce4-settings
+fast_float|pacote general/fast_float
+vte|pacote gnome/vte
+xfce4-terminal|pacote xfce/xfce4-terminal
+xfce4-appfinder|pacote xfce/xfce4-appfinder
+tumbler|pacote xfce/tumbler
+xfce4-notifyd|pacote xfce/xfce4-notifyd
+itstool|pacote pst/itstool
+libgpg-error|pacote general/libgpg-error
+libgcrypt|pacote general/libgcrypt
+lightdm|pacote x/lightdm --extra lightdm-gtk-greeter
+lightdm-bootscript|bootscripts lightdm
+lightdm-runlevel5|lightdm_runlevel5
+TTF-and-OTF-fonts|fontes_ttf

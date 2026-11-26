@@ -1,0 +1,4 @@
+# ianinjapelagestao: ambiente do lightdm-gtk-greeter (lido pelo pam_env, ver /etc/pam.d/lightdm-greeter).
+# O LightDM arranca pelo init sem LANG; assim a data e os menus do ecrã de entrada ficam em português.
+LANG=pt_PT.UTF-8
+LANGUAGE=pt_PT:pt

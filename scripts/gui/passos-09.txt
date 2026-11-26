@@ -1,0 +1,2 @@
+# F8d — passos finais (depois do tema)
+machine-id|limpar_machine_id             # /var/lib/dbus/machine-id diferente em cada arranque

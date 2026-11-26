@@ -1,0 +1,13 @@
+#!/usr/bin/python3 -I
+"""/usr/libexec/ianinja-assistente/aplicar — parte privilegiada do Assistente de configuração.
+Chamado pelo greeter (utilizador lightdm) com: sudo -n /usr/libexec/ianinja-assistente/aplicar AÇÃO
+(/etc/sudoers.d/ianinja-assistente). Só aceita estado, criar (JSON no stdin), experimentar e as ações
+persistencia-estado, persistencia-listar e persistencia-criar (JSON no stdin; stdout repassado linha a
+linha) do backend /usr/sbin/ianinja-persistencia (scripts/apps/persistencia/CONTRATO.md) e reiniciar
+(só depois de persistencia-criar ter dado OK neste arranque), nunca --raiz; criar recusa se o sistema
+já estiver configurado."""
+import sys
+sys.path.insert(0, "/usr/share/ianinja-assistente")
+import contas  # noqa: E402
+sys.exit(contas.main(permitir_raiz=False, permitidos=("estado", "criar", "experimentar", "persistencia-estado",
+                                                        "persistencia-listar", "persistencia-criar", "reiniciar")))

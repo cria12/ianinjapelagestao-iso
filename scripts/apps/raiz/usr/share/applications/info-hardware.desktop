@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Informação do hardware
+GenericName=Hardware e drivers
+Comment=Mostra as placas gráficas e o driver em uso, OpenGL, Vulkan, som, Bluetooth e periféricos
+Exec=xfce4-terminal "--title=Informação do hardware" --geometry=110x40 -x info-hardware --janela
+Icon=computer
+Terminal=false
+StartupNotify=true
+Categories=System;Monitor;
+Keywords=hardware;driver;gpu;placa;vulkan;opengl;som;bluetooth;razer;hyperx;

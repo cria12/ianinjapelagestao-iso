@@ -1,0 +1,71 @@
+#!/bin/sh
+########################################################################
+# Begin desempenho
+#
+# Description : Afinação de CPU e memória para inferência de LLM no CPU
+#               (llama.cpp): governador cpufreq "performance" (se houver
+#               cpufreq — em QEMU normalmente não há, e não é erro) e
+#               Transparent Huge Pages em modo "madvise".
+#
+# Authors     : ianinjapelagestao (estilo dos bootscripts do LFS)
+#
+# Version     : LFS 12.4
+#
+########################################################################
+
+### BEGIN INIT INFO
+# Provides:            desempenho
+# Required-Start:      mountvirtfs
+# Should-Start:        sysctl
+# Required-Stop:
+# Should-Stop:
+# Default-Start:       S
+# Default-Stop:
+# Short-Description:   Governador performance e THP madvise.
+# Description:         Põe todos os CPUs no governador cpufreq
+#                      "performance" e o THP em "madvise".
+# X-LFS-Provided-By:   ianinjapelagestao
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+GOVERNADOR=performance
+THP=madvise
+[ -r /etc/sysconfig/desempenho ] && . /etc/sysconfig/desempenho
+
+case "${1}" in
+   start)
+      log_info_msg "A afinar CPU (cpufreq ${GOVERNADOR}) e memória (THP ${THP})..."
+      for g in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor; do
+         [ -w "${g}" ] && echo ${GOVERNADOR} > "${g}" 2>/dev/null
+      done
+      # intel_pstate/amd-pstate em modo ativo: preferência energética
+      # (com o governador performance o kernel já a fixa; erros ignorados)
+      for e in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_preference; do
+         [ -w "${e}" ] && echo performance > "${e}" 2>/dev/null
+      done
+      t=/sys/kernel/mm/transparent_hugepage/enabled
+      [ -w ${t} ] && echo ${THP} > ${t} 2>/dev/null
+      # nunca falha o arranque: sem cpufreq/THP não há nada a afinar
+      log_success_msg2
+      ;;
+
+   status)
+      g=/sys/devices/system/cpu/cpu0/cpufreq
+      if [ -r ${g}/scaling_governor ]; then
+         echo "cpufreq: driver $(cat ${g}/scaling_driver 2>/dev/null), governador $(cat ${g}/scaling_governor)"
+      else
+         echo "cpufreq: indisponível (normal em máquinas virtuais)"
+      fi
+      echo "THP: $(cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || echo indisponível)"
+      ;;
+
+   *)
+      echo "Usage: ${0} {start|status}"
+      exit 1
+      ;;
+esac
+
+exit 0
+
+# End desempenho

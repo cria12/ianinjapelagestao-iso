@@ -1,0 +1,4 @@
+# Copie para scripts/senhas.local (não vai para o Git) e escolha as senhas.
+# Se não existir, a construção cria-o com senhas aleatórias.
+SENHA_ROOT=troque-esta-senha
+SENHA_NINJA=troque-esta-senha

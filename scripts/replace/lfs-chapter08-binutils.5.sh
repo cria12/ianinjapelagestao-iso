@@ -1,0 +1,1 @@
+grep '^FAIL:' $(find -name '*.log') || true

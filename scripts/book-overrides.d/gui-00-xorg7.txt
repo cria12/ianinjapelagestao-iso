@@ -1,0 +1,5 @@
+# F8c — interface gráfica: x/xorg7 (ambiente do Xorg). Ver scripts/f08c-gui.sh.
+blfs/x/xorg7                    replace  1       # <PREFIX> -> /usr (prefixo recomendado pelo livro; evita os blocos 6-11)
+blfs/x/xorg7                    skip     3       # só para a shell zsh
+blfs/x/xorg7                    skip     5       # sudoers env_keep: compila-se como root no chroot (sem sudo)
+blfs/x/xorg7                    skip     6,8,9,10,11 # só se XORG_PREFIX não for /usr

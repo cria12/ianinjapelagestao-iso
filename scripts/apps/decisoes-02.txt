@@ -1,0 +1,29 @@
+## OpenCV sem as dependências multimédia recomendadas
+O livro recomenda FFmpeg, gst-plugins-base, xine-lib, v4l-utils, jasper, libavif e OpenJPEG para o opencv. Juntas puxariam mais de vinte páginas (libaom, x264, x265, libvpx, PulseAudio, GStreamer, libdvdnav...) só para ler e gravar vídeo e formatos de imagem raros. O face-finder só lê ficheiros de imagem: JPEG, PNG, TIFF e WebP chegam pelas bibliotecas que já existem (libjpeg-turbo, libpng, libtiff) ou pelas cópias internas do OpenCV. A interface GTK3 do highgui fica ativa (o GTK já está instalado). O Video4Linux (só cabeçalhos do kernel) mantém-se, por isso cv2.VideoCapture continua a funcionar com câmaras USB.
+
+## OpenCV: WITH_IPP=OFF, sem G-API e sem opencv_contrib
+Durante o cmake o OpenCV descarrega o ippicv (Intel IPP) e o ADE (para o módulo G-API). O chroot não tem rede e estes downloads não seriam verificados pelo livro, por isso ficam desligados (-D WITH_IPP=OFF, -D BUILD_opencv_gapi=OFF, -D WITH_ADE=OFF; o init.cmake do G-API corre mesmo com o módulo desligado, daí o WITH_ADE). O IPP só acelera algumas funções; o resultado é o mesmo. O opencv_contrib (adicional opcional) não é preciso: o cv2.FaceDetectorYN está no módulo objdetect e usa o dnn, ambos do pacote base. Também ficam desligados de forma explícita CUDA, Qt, Java, documentação, exemplos e testes. O script substituído verifica no CMakeCache.txt que os módulos python3, dnn e objdetect entram na compilação, para falhar logo no cmake se o NumPy ou o Python não forem encontrados.
+
+## NumPy antes do OpenCV; testes sem rede omitidos
+O NumPy é opcional no livro do opencv, mas sem ele não se gera o módulo cv2 para Python 3. Instala-se antes, com o meson_python e o pyproject-metadata que o livro pede. O NumPy é compilado com -Dallow-noblas=true, tal como no livro (sem BLAS/LAPACK otimizados, que aqui não fazem falta). Os testes do NumPy e do meson_python criam um venv e descarregam pacotes com pip, por isso ficam omitidos.
+
+## libarchive instalada por ser requerida pelo opencv
+O livro lista a libarchive como requerida para o opencv (o OpenCV não a usa diretamente). Instala-se na mesma, por ser pequena e útil: dá bsdtar, bsdcpio e bsdunzip, e o livro cria a ligação /usr/bin/unzip.
+
+## PyGObject e PyCairo para a interface gráfica do face-finder
+O PyGObject (com o PyCairo recomendado) dá ao Python acesso ao GTK 3 que já está instalado, e é isso que a face_finder_gui.py usa. Os testes do PyGObject precisam de uma sessão gráfica com D-Bus, por isso não correm (o livro não os põe em bloco próprio). O pytest não é instalado porque puxaria oito páginas (hatchling, pluggy, iniconfig...). Os testes do projeto usam unittest, que também corre com pytest se o utilizador o instalar mais tarde.
+
+## Ristretto e libexif
+O Ristretto (com a libexif que o livro exige) é o visualizador de imagens do Xfce. O face-finder --abrir usa-o para mostrar as imagens marcadas. A documentação da libexif precisa do Doxygen, que não está instalado, por isso não é gerada.
+
+## Modelo YuNet com URL fixada e SHA-256
+O detetor usa face_detection_yunet_2023mar.onnx (232 KB) do opencv_zoo, com licença MIT (models/face_detection_yunet/LICENSE, de Shiqi Yu). O ficheiro é descarregado no host pela função baixar, no commit f12e12798e83 (o que acrescentou esta versão), e verificado por SHA-256. Fica em /usr/share/face-finder e em ~/Projetos/face-finder/modelos. O programa funciona sem rede.
+
+## Fotografias de licença livre do Wikimedia Commons
+Doze fotografias de pessoas com licença livre: domínio público (NASA, USDA, EPA e retrato do séc. XIX), CC BY 2.0/3.0 e CC BY-SA 2.5/3.0. São fotografias individuais e de grupo (de 6 a quase 100 pessoas), de frente e de perfil, a cores, a preto e branco e em sépia, de pessoas de idades e origens variadas. Não há crianças identificáveis: uma foto de grupo com crianças em primeiro plano foi trocada. Também não há contextos sensíveis. Usam-se as miniaturas fixas de 1280 px do Commons (upload.wikimedia.org/.../thumb/...), ou o original quando é mais pequeno, sem outras alterações. A lista (ficheiro, URL, SHA-256) está em scripts/apps/fotos-02.txt, e o autor, a licença e a origem de cada uma estão em CREDITOS.md, dentro do projeto. Um grande plano em que a boca ficava fora da imagem foi trocado porque o YuNet não o detetava. O README explica esta limitação.
+
+## User-Agent próprio para os downloads do Wikimedia
+O upload.wikimedia.org responde 429 (Too Many Requests) ao User-Agent genérico do wget, por causa da política de User-Agent da Wikimedia. Com um nome descritivo, o mesmo URL funciona. As fotografias são descarregadas com a função baixar da etapa, à qual se dá um wgetrc temporário só com o user_agent (variável WGETRC). Cada download tem até cinco tentativas com pausas.
+
+## Projeto em ~/Projetos/face-finder e programa em /usr/share/face-finder
+O comando /usr/bin/face-finder (e o face-finder-gui do atalho "Face Finder") corre a cópia em /usr/share/face-finder. Assim o utilizador pode alterar ou apagar o projeto em /home/ninja/Projetos/face-finder (dono ninja) sem estragar o comando. O projeto também é copiado para /etc/skel/Projetos/face-finder, para utilizadores novos. Inclui o código, o modelo, as fotografias, os testes, o README (com limitações e ética: deteção não é reconhecimento) e a configuração .vscode (settings.json e launch.json para correr e depurar com a extensão Python do VS Code, que se instala com instalar-aplicacoes). Se o PyGObject não estiver disponível, o atalho abre um terminal com a ajuda da linha de comandos. O lançador não é fixado na dock, porque o docklike.rc partilhado está a ser alterado pelo bloco 1; aparece no menu e no xfce4-appfinder.

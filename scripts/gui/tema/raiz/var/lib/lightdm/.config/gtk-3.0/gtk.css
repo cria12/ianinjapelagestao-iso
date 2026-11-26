@@ -1,0 +1,49 @@
+/* ianinjapelagestao: aspeto do lightdm-gtk-greeter (corre como utilizador lightdm, HOME=/var/lib/lightdm).
+ * Ao estilo do ecrã de início de sessão do macOS: caixa centrada, translúcida, cantos redondos,
+ * campos arredondados; barra superior quase transparente. Nomes dos elementos: lightdm-gtk-greeter.glade. */
+
+#panel_window {
+  background-color: rgba(255, 255, 255, 0.35);
+  color: #1d1d1f;
+  box-shadow: none;
+}
+#panel_window menubar,
+#panel_window menubar > menuitem {
+  background-color: transparent;
+  color: #1d1d1f;
+}
+
+#login_window,
+#shutdown_dialog,
+#restart_dialog {
+  background-color: rgba(255, 255, 255, 0.62);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 12px 40px rgba(30, 30, 60, 0.22);
+  padding: 18px 22px;
+}
+#content_frame,
+#buttonbox_frame {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 6px;
+}
+#user_image_border {
+  border: none;
+  background-color: transparent;
+}
+#login_window entry {
+  border-radius: 10px;
+  min-height: 32px;
+  padding: 0 10px;
+}
+#login_window combobox button {
+  border-radius: 10px;
+}
+#login_button,
+#cancel_button {
+  border-radius: 10px;
+  min-height: 30px;
+  padding: 0 16px;
+}

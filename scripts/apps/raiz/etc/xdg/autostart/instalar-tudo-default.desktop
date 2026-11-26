@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar aplicações padrão
+Comment=No 1.º início de sessão oferece instalar VS Code, Chrome, Claude Code e Codex e define o Chrome como navegador predefinido
+Exec=/usr/local/bin/instalar-tudo-click.sh
+Icon=instalar-aplicacoes
+OnlyShowIn=XFCE;
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

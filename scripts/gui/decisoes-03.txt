@@ -1,0 +1,35 @@
+## Xfce: documentação e sessão pelo LightDM
+As páginas do Xfce (libxfce4util, xfconf, libxfce4ui, libxfce4windowing, exo, garcon, xfce4-panel, xfce4-session, xfwm4, thunar, xfdesktop, xfce4-settings, xfce4-appfinder, tumbler, xfce4-notifyd, xfce4-terminal) seguem o livro sem alterações: o gtk-doc já vem desligado por omissão nos configure do Xfce e o Vala não está instalado, pelo que as bindings ficam de fora automaticamente. O libxfce4windowing deteta o Wayland (GTK3 foi compilado com o backend Wayland) e usa os wlr-protocols incluídos no tarball. Nada de painel, tema ou aspeto é configurado aqui (fica para scripts/gui/tema).
+
+## xfce4-session: sem ~/.xinitrc
+Os blocos 4 e 5 (criar ~/.xinitrc com "dbus-launch --exit-with-x11 startxfce4" e correr startx) foram omitidos: são para o utilizador que arranca o X à mão e o startx é interativo. A sessão é lançada pelo LightDM a partir de /usr/share/xsessions/xfce.desktop (Exec=startxfce4), que o próprio make install do xfce4-session instala (XSESSION_PREFIX=/usr por omissão); o startxfce4 arranca o dbus-launch sozinho quando não há bus de sessão, pelo que não é preciso nenhum equivalente sistémico do ~/.xinitrc. O bloco 3 (update-desktop-database e update-mime-database) é mantido: desktop-file-utils e shared-mime-info já estão instalados.
+
+## libnotify, VTE e xfce4-notifyd: blocos omitidos
+libnotify bloco 2 (documentação com GTK-Doc) e VTE bloco 2 (documentação com Gi-DocGen) foram omitidos por as ferramentas não estarem instaladas. xfce4-notifyd bloco 3 (notify-send de teste) foi omitido: precisa de uma sessão gráfica e de um bus D-Bus de sessão, inexistentes no chroot.
+
+## VTE sem GnuTLS, GTK-4 e Vala
+O meson_options.txt do VTE 0.80.3 tem gnutls, gtk4 e vapi ligados por omissão (com "required"), e nenhum destes está instalado. Ao comando do livro acrescentou-se -D gnutls=false -D gtk4=false -D vapi=false (opções descritas nas "Command Explanations" da página). Ficam ligados: GTK3, ICU, FriBidi, GObject Introspection (vem com a GLib) e fast_float; o liblz4 obrigatório já vem do LFS. Só se instala libvte-2.91.so (GTK3), que é o que o xfce4-terminal usa. O "rm -v /etc/profile.d/vte.*" do livro é mantido.
+
+## alsa-lib fora deste bloco
+A alsa-lib (e o alsa-ucm-conf) já é instalada na F8c "Drivers e firmware", pelo que não faz parte destes passos. Não se reconfigura o kernel: o som vem como módulos no kernel de base Arch (F7).
+
+## libcanberra: patch do livro, sem GStreamer/PulseAudio/GTK2
+O patch libcanberra-0.30-wayland-1.patch é obrigatório no livro e é descarregado automaticamente (blfs-fetch.py: patch-obrigatorio). O configure segue o livro (--disable-oss); GStreamer, PulseAudio e GTK2 não estão instalados e o configure deteta-os como ausentes, ficando só o backend ALSA e libcanberra-gtk3.
+
+## libgpg-error e libgcrypt acrescentadas antes do LightDM
+A página do LightDM dá o libgcrypt como dependência obrigatória, e este precisa do libgpg-error; nenhum dos dois está no sistema nem em scripts/gui/ordem.txt (o resolver não os apanhou). Acrescentaram-se os passos general/libgpg-error e general/libgcrypt, como no livro, entre o itstool e o LightDM. A documentação HTML/texto do libgcrypt é gerada com o makeinfo do Texinfo do LFS, como na página. O Vala (recomendado) não é instalado: o LightDM compila sem as bindings Vala.
+
+## LightDM: utilizador, Xorg e greeter
+O utilizador e o grupo lightdm (uid/gid 65, livres no sistema) só são criados se não existirem, para o passo poder ser repetido. O greeter lightdm-gtk-greeter-2.0.9 é o download adicional da página (--extra lightdm-gtk-greeter) e compila-se com o libxklavier, como no livro. O bloco que cria /usr/bin/X a partir de /opt/xorg foi substituído: o Xorg está em /usr (XORG_PREFIX=/usr), pelo que apenas se garante a ligação /usr/bin/X -> Xorg (o LightDM usa xserver-command=X por omissão) se o xorg-server não a tiver criado.
+
+## LightDM: PAM
+O livro troca pam_systemd por pam_elogind nos três ficheiros de data/pam (lightdm, lightdm-autologin, lightdm-greeter); esses ficheiros só usam pam_nologin, pam_env, pam_unix, pam_permit, pam_deny, pam_succeed_if e pam_elogind (opcional), todos do Linux-PAM/elogind já instalados. São ficheiros novos em /etc/pam.d com nome próprio: não alteram login, su, sshd, sudo nem os system-* do BLFS, pelo que os logins de texto e por ssh não são afetados. Não se usou o modelo "include system-login" de outras distribuições porque o BLFS não tem esse ficheiro.
+
+## LightDM: configuração funcional e arranque no runlevel 5
+O "telinit 5" do livro não pode correr no chroot. Em seu lugar cria-se /etc/lightdm/lightdm.conf.d/10-ianinjapelagestao.conf com [Seat:*] greeter-session=lightdm-gtk-greeter e user-session=xfce (o LightDM lê lightdm.conf.d antes de lightdm.conf; sem user-session o valor por omissão seria "default", que não existe), e confirma-se que existem xfce.desktop, o .desktop do greeter, o binário e os ficheiros PAM. O make install-lightdm do blfs-bootscripts-20250225 (passo lightdm-bootscript, função bootscripts da etapa) instala /etc/rc.d/init.d/xdm e /etc/sysconfig/xdm com DISPLAY_MANAGER=/usr/bin/lightdm e acrescenta ao /etc/inittab "dm:5:respawn:/etc/rc.d/init.d/xdm". O passo lightdm-runlevel5 muda "id:3:initdefault:" para "id:5:initdefault:", garante que todo o S* de rc3.d existe também em rc5.d (hoje os dois são iguais: sysklogd e network), e confirma que os agetty de tty1-tty6 e ttyS0 (definidos para os runlevels 2345 na F6) continuam ativos no 5. O LightDM ocupa o vt7 (minimum-vt=7 por omissão), que nenhum agetty usa; o login na ttyS0 e em tty1-6 mantém-se. Para voltar ao modo texto basta acrescentar "3" à linha do kernel no GRUB ou "telinit 3".
+
+## Tipos de letra: DejaVu e Liberation
+A página TTF-and-OTF-fonts não tem tarball e o seu único bloco pressupõe a DejaVu já extraída, pelo que é substituída pela função fontes_ttf. Instalam-se a DejaVu 2.37 (a página do livro usa-a como exemplo; fallback com grande cobertura Unicode e inclui DejaVu Sans Mono, usada no terminal) e a Liberation 2.1.5 (métricas compatíveis com Arial, Times New Roman e Courier New, para documentos e páginas web), cerca de 9 MB no total. Os tarballs são descarregados no host para $LFS/sources a partir das releases oficiais no GitHub e verificados por SHA-256 fixado no script; os .ttf vão para /usr/share/fonts/dejavu e /usr/share/fonts/liberation, as licenças para /usr/share/doc, e corre-se fc-cache -f. O Noto (completo ou Color Emoji) não foi incluído por causa do tamanho na ISO; a fonte de interface (Inter) é instalada pelo tema.
+
+## xfce4-terminal sem página de manual
+O meson.build do xfce4-terminal 1.1.5 gera sempre a página de manual com xsltproc --nonet e a folha de estilos DocBook XSL, que não está instalada (o passo falhava a compilar doc/xfce4-terminal.1) e não oferece opção para a desligar. Antes do meson setup retira-se a linha subdir('doc') do meson.build; o resto segue o livro. Fica sem man xfce4-terminal.

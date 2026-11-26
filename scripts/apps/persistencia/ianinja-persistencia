@@ -1,0 +1,707 @@
+#!/usr/bin/python3 -I
+"""ianinja-persistencia — guardar os dados do ianinjapelagestao entre arranques (backend, root).
+
+Contrato: scripts/apps/persistencia/CONTRATO.md. O arranque (initramfs, scripts/live-init.sh) usa
+como camada de escrita do OverlayFS um ext4 com o rótulo IANINJA-DADOS: uma partição (tipos "pen"
+— criada no espaço livre a seguir à imagem ISO na própria pen — e "particao" — uma partição ou disco
+inteiro formatado) ou o ficheiro /ianinja/ianinja-dados.img numa partição NTFS/exFAT/FAT/ext4 já
+existente (tipo "ficheiro", ex.: o disco do Windows, que não é alterado).
+
+  ianinja-persistencia estado [--json]           ativo?, tipo, dispositivo, espaço
+  ianinja-persistencia listar [--json]           destinos possíveis (o recomendado primeiro)
+  ianinja-persistencia criar <id> [--tamanho-mb N] [--confirmo-apagar]
+      cria o destino e copia para lá a camada de escrita atual (o que já foi feito nesta sessão);
+      stdout: "PROGRESSO <0-100> <texto>" por evento e no fim "OK <id>" (rc 0) ou "ERRO <texto>" (rc 1).
+      <id> = pen:/dev/sdX | ficheiro:/dev/sdXN | particao:/dev/sdXN (ids de "listar").
+
+Chamado pelo greeter através de /usr/libexec/ianinja-assistente/aplicar persistencia-* (sudo).
+"""
+import fcntl
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import threading
+import time
+
+ROTULO = "IANINJA-DADOS"
+IMG = "ianinja/ianinja-dados.img"
+RUN = "/run/live"
+INFO = RUN + "/dados-info"
+ISO_DEV = RUN + "/iso-dev"
+UPPER = RUN + "/rw/upper"
+TRABALHO = "/run/ianinja-persistencia"
+LOCK = TRABALHO + ".lock"
+MIB = 1024 * 1024
+MIN_MB = 1024           # menor destino aceite
+MARGEM_MB = 512         # espaço que fica livre no hospedeiro de um ficheiro-imagem
+VFAT_MAX_MB = 4095      # limite de um ficheiro em FAT32
+HOSPEDEIROS = ("ntfs", "exfat", "vfat", "ext4")
+GUID_LINUX = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
+GUID_EFI = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+GUID_MSR = "e3c9e3bd-6f32-4bd1-9d63-a9a7fb3b4a0e"
+GUID_WINRE = "de94bba4-06d1-4d40-a16a-bfd50179d6ac"
+INTERNOS = ("inicio", "pttype", "fstype", "removivel")   # campos só para o criar; não saem no --json
+
+
+class Erro(Exception):
+    pass
+
+
+def correr(args, entrada=None, erro=True, timeout=600):
+    r = subprocess.run(args, input=entrada, capture_output=True, text=True, timeout=timeout)
+    if erro and r.returncode != 0:
+        m = (r.stderr or r.stdout).strip().splitlines()
+        raise Erro(f"{os.path.basename(args[0])}: {m[-1] if m else 'código ' + str(r.returncode)}")
+    return r
+
+
+def progresso(n, texto):
+    print(f"PROGRESSO {max(0, min(100, int(n)))} {texto}", flush=True)
+
+
+def gb(mb):
+    """'27,8 GB' em pt-PT (GB decimais, como os fabricantes e o Windows mostram)."""
+    v = mb * MIB / 1e9
+    s = f"{v:.1f}" if v < 100 else f"{v:.0f}"
+    return s.replace(".", ",") + " GB"
+
+
+def alinhar(setores, cima=True):
+    a = 2048  # 1 MiB
+    return (setores + a - 1) // a * a if cima else setores // a * a
+
+
+# ------------------------------------------------------------------ leitura do sistema
+
+def sessao_live():
+    return os.path.ismount(RUN + "/iso")
+
+
+def ativo():
+    return os.path.ismount("/mnt/dados") or os.path.ismount(RUN + "/dados")
+
+
+def ler_info():
+    d = {}
+    try:
+        with open(INFO, encoding="utf-8") as f:
+            for l in f:
+                if "=" in l:
+                    k, v = l.rstrip("\n").split("=", 1)
+                    d[k] = v
+    except OSError:
+        pass
+    return d
+
+
+def dispositivo_iso():
+    """Dispositivo real onde está a ISO em execução (o initramfs regista-o em /run/live/iso-dev;
+    senão, pela montagem, resolvendo um dispositivo loop para o disco por trás)."""
+    try:
+        with open(ISO_DEV) as f:
+            d = f.read().strip()
+        if d.startswith("/dev/") and os.path.exists(d):
+            return os.path.realpath(d)
+    except OSError:
+        pass
+    r = correr(["findmnt", "-no", "SOURCE", RUN + "/iso"], erro=False)
+    src = r.stdout.strip()
+    if not src:
+        return ""
+    src = os.path.realpath(src)
+    if src.startswith("/dev/loop"):
+        r = correr(["losetup", "-nO", "BACK-FILE", src], erro=False)
+        b = r.stdout.strip()
+        if b.startswith("/dev/"):
+            src = os.path.realpath(b)
+    return src
+
+
+def lsblk():
+    """Lista plana de dispositivos (lsblk em JSON, tamanhos em bytes, caminhos completos)."""
+    cols = "PATH,TYPE,FSTYPE,LABEL,SIZE,MOUNTPOINTS,PKNAME,TRAN,MODEL,VENDOR,RM,PTTYPE,PARTTYPE,START,HOTPLUG"
+    r = correr(["lsblk", "-J", "-b", "-p", "-o", cols])
+    out = []
+
+    def cada(lista):
+        for d in lista:
+            d = dict(d)
+            filhos = d.pop("children", None) or []
+            d["filhos"] = [c["path"] for c in filhos]
+            out.append(d)
+            cada(filhos)
+    cada(json.loads(r.stdout).get("blockdevices", []))
+    for d in out:
+        d["size"] = int(d.get("size") or 0)
+        d["start"] = int(d.get("start") or 0)
+        d["mountpoints"] = [m for m in (d.get("mountpoints") or []) if m]
+        for k in ("fstype", "label", "pkname", "tran", "model", "vendor", "pttype", "parttype", "type"):
+            d[k] = (d.get(k) or "").strip()
+        d["rm"] = str(d.get("rm")) in ("1", "True", "true")
+    return out
+
+
+def swaps():
+    s = set()
+    try:
+        with open("/proc/swaps") as f:
+            for l in f.read().splitlines()[1:]:
+                if l.startswith("/dev/"):
+                    s.add(os.path.realpath(l.split()[0]))
+    except OSError:
+        pass
+    return s
+
+
+def setores_iso(dev):
+    """Tamanho da imagem ISO em setores de 512 bytes (isosize no dispositivo)."""
+    r = correr(["isosize", "-d", "512", dev], erro=False)
+    try:
+        return int(r.stdout.strip())
+    except ValueError:
+        return 0
+
+
+def nome_disco(d):
+    """'SanDisk Ultra 32 GB' a partir do fabricante/modelo e do tamanho."""
+    partes = [p for p in (d.get("vendor"), d.get("model")) if p and not p.startswith("0x")]  # 0x1af4: id PCI (virtio)
+    nome = " ".join(partes).strip()
+    tam = gb(d["size"] // MIB) if d["size"] else ""
+    return (nome + " " + tam).strip() if nome else tam
+
+
+def genero(d, discos):
+    """'Pen USB', 'Disco externo', 'Cartão SD' ou 'Disco interno' para um dispositivo (ou partição)."""
+    disco = discos.get(d["pkname"], d) if d["pkname"] else d
+    if disco.get("tran") == "usb" or disco.get("rm"):
+        return "Pen USB" if disco["size"] <= 256 * 1024 * MIB else "Disco externo"
+    if disco.get("tran") == "mmc":
+        return "Cartão SD"
+    return "Disco interno"
+
+
+# ------------------------------------------------------------------ estado
+
+def estado():
+    e = {"ativo": False, "tipo": None, "dispositivo": "", "livre_mb": 0, "total_mb": 0}
+    if not ativo():
+        return e
+    info = ler_info()
+    mnt = "/mnt/dados" if os.path.ismount("/mnt/dados") else RUN + "/dados"
+    st = os.statvfs(mnt)
+    e.update({"ativo": True, "tipo": info.get("tipo") or "particao",
+              "dispositivo": info.get("dispositivo") or "", "montado_em": mnt,
+              "livre_mb": st.f_bavail * st.f_frsize // MIB, "total_mb": st.f_blocks * st.f_frsize // MIB})
+    if info.get("ficheiro"):
+        e["ficheiro"] = info["ficheiro"]
+    return e
+
+
+# ------------------------------------------------------------------ listar
+
+def montar_temp(dev, fs, opcoes="rw,noatime"):
+    """Monta dev num diretório temporário; devolve o diretório (levanta Erro se não montar)."""
+    os.makedirs(TRABALHO, exist_ok=True)
+    mnt = os.path.join(TRABALHO, "m-" + os.path.basename(dev))
+    os.makedirs(mnt, exist_ok=True)
+    tipo = "ntfs3" if fs == "ntfs" else fs
+    correr(["mount", "-t", tipo, "-o", opcoes, dev, mnt])
+    return mnt
+
+
+def desmontar(mnt):
+    r = correr(["umount", mnt], erro=False)
+    if r.returncode != 0:
+        time.sleep(1)
+        correr(["umount", mnt], erro=False)
+    try:
+        os.rmdir(mnt)
+    except OSError:
+        pass
+
+
+def opcoes_pen(discos, iso_dev, lista):
+    """Partição nova no espaço livre a seguir à imagem ISO, na própria pen (disco inteiro com
+    tabela de partições GPT ou MBR; nunca num CD)."""
+    iso = discos.get(iso_dev)
+    if not iso or iso["type"] != "disk" or iso["pttype"] not in ("gpt", "dos"):
+        return
+    n_iso = setores_iso(iso_dev)
+    if n_iso <= 0:
+        return
+    particoes = [p for p in discos.values() if p["pkname"] == iso_dev]
+    # já existe uma partição depois da imagem (criada antes)? então não há espaço "livre" para nós
+    if any(p["start"] >= n_iso for p in particoes):
+        return
+    if iso["pttype"] == "dos" and len(particoes) >= 4:
+        return
+    inicio = alinhar(n_iso)
+    total = iso["size"] // 512
+    reserva = 2048 if iso["pttype"] == "gpt" else 0      # 1 MiB para a cópia de segurança da GPT no fim do disco (45 setores com 176 entradas)
+    fim = alinhar(total - reserva, cima=False)
+    livre_mb = (fim - inicio) * 512 // MIB
+    if livre_mb < MIN_MB:
+        return
+    lista.append({"id": "pen:" + iso_dev, "tipo": "pen",
+                  "titulo": f"Esta pen USB ({nome_disco(iso)})",
+                  "detalhe": f"{gb(livre_mb)} livres no espaço que a imagem do sistema não usa; nada é apagado",
+                  "max_mb": livre_mb, "sugerido_mb": livre_mb, "apaga": False, "recomendado": False,
+                  "inicio": inicio, "pttype": iso["pttype"]})
+
+
+def dentro_da_iso(d, iso_dev, n_iso):
+    """Partição da própria imagem ISO (EFI, HFS+, Gap0/1 da ISO híbrida)."""
+    return d["pkname"] == iso_dev and n_iso and d["start"] < n_iso
+
+
+def opcoes_ficheiro(discos, iso_dev, n_iso, usados, lista):
+    for d in discos.values():
+        if d["path"] == iso_dev or d["path"] in usados or d["mountpoints"]:
+            continue
+        if d["fstype"] not in HOSPEDEIROS:
+            continue                        # BitLocker, LUKS, swap, HFS+, vazio...: ignorados
+        if d["type"] not in ("part", "disk") or d["filhos"]:
+            continue
+        if dentro_da_iso(d, iso_dev, n_iso) or d["size"] < 2 * MIN_MB * MIB:
+            continue
+        try:
+            mnt = montar_temp(d["path"], d["fstype"])
+        except Erro as e:
+            print(f"(ignorado {d['path']}: {e} — Windows em hibernação/arranque rápido?)", file=sys.stderr)
+            continue
+        try:
+            if os.path.exists(os.path.join(mnt, IMG)):
+                print(f"(ignorado {d['path']}: já tem /{IMG})", file=sys.stderr)
+                continue
+            st = os.statvfs(mnt)
+            livre_mb = st.f_bavail * st.f_frsize // MIB
+            windows = os.path.isdir(os.path.join(mnt, "Windows"))
+        finally:
+            desmontar(mnt)
+        max_mb = livre_mb - MARGEM_MB
+        if d["fstype"] == "vfat":
+            max_mb = min(max_mb, VFAT_MAX_MB)
+        if max_mb < MIN_MB:
+            continue
+        sugerido = min(max_mb, max(8192, min(livre_mb // 4, 65536)))
+        tam = gb(d["size"] // MIB)
+        if windows:
+            titulo = f"Disco do Windows ({tam})"
+            detalhe = f"Um ficheiro \\ianinja\\ianinja-dados.img; {gb(livre_mb)} livres, o Windows não é alterado"
+        else:
+            rot = f" «{d['label']}»" if d["label"] else ""
+            titulo = f"{genero(d, discos)}{rot} ({d['fstype'].upper()}, {tam})"
+            detalhe = f"Um ficheiro /ianinja/ianinja-dados.img; {gb(livre_mb)} livres, o resto não é alterado"
+        lista.append({"id": "ficheiro:" + d["path"], "tipo": "ficheiro", "titulo": titulo, "detalhe": detalhe,
+                      "max_mb": max_mb, "sugerido_mb": sugerido, "apaga": False, "recomendado": False,
+                      "fstype": d["fstype"]})
+
+
+def _tem_windows(d):
+    """Partição NTFS com um Windows instalado: nunca se propõe formatá-la."""
+    try:
+        mnt = montar_temp(d["path"], "ntfs", "ro")
+    except Erro:
+        return False
+    try:
+        return os.path.isdir(os.path.join(mnt, "Windows"))
+    finally:
+        desmontar(mnt)
+
+
+def opcoes_particao(discos, iso_dev, n_iso, usados, lista):
+    for d in discos.values():
+        if d["path"] == iso_dev or d["path"] in usados or d["mountpoints"]:
+            continue
+        if d["type"] == "part":
+            if dentro_da_iso(d, iso_dev, n_iso) or d["pkname"] == iso_dev:
+                continue                    # a própria pen da ISO: só pelo tipo "pen"
+            if d["parttype"].lower() in (GUID_EFI, GUID_MSR, GUID_WINRE) or d["parttype"] in ("0xef", "0x27"):
+                continue
+        elif d["type"] == "disk":
+            if d["filhos"] or d["pttype"]:
+                continue                    # disco com partições: listam-se as partições
+        else:
+            continue
+        if d["fstype"] in ("BitLocker", "crypto_LUKS", "swap", "iso9660"):
+            continue
+        if d["fstype"] == "ntfs" and _tem_windows(d):
+            continue
+        if d["size"] < 2 * MIN_MB * MIB:
+            continue
+        tam = gb(d["size"] // MIB)
+        conteudo = "vazia" if not d["fstype"] else d["fstype"].upper() + (f" «{d['label']}»" if d["label"] else "")
+        disco = discos.get(d["pkname"]) if d["pkname"] else None
+        n = re.sub(r"^.*?(\d+)$", r"\1", d["path"]) if d["type"] == "part" else ""
+        titulo = f"{genero(d, discos)} ({nome_disco(disco or d)})" + (f" — partição {n}" if n else " — disco inteiro")
+        if n:
+            detalhe = f"Partição inteira de {tam} ({conteudo}) formatada para o ianinjapelagestao: TUDO o que lá está é apagado"
+        else:
+            detalhe = f"Disco inteiro de {tam} ({conteudo}) formatado para o ianinjapelagestao: TUDO o que lá está é apagado"
+        rem = bool((disco or d).get("rm") or (disco or d).get("tran") == "usb")
+        lista.append({"id": "particao:" + d["path"], "tipo": "particao", "titulo": titulo, "detalhe": detalhe,
+                      "max_mb": d["size"] // MIB, "sugerido_mb": d["size"] // MIB, "apaga": True,
+                      "recomendado": False, "removivel": rem})
+
+
+def listar(completo=False):
+    """Opções ordenadas: pen, ficheiros (maior espaço primeiro), partições (removíveis primeiro).
+    A primeira que não apaga dados é a recomendada. Sem sessão live (ou já ativo): lista vazia."""
+    if not sessao_live():
+        return []
+    correr(["modprobe", "-a", "ntfs3", "exfat"], erro=False)
+    discos = {d["path"]: d for d in lsblk()}
+    iso_dev = dispositivo_iso()
+    n_iso = setores_iso(iso_dev) if iso_dev else 0
+    usados = swaps()
+    for d in discos.values():
+        if d["type"] in ("rom", "loop"):
+            usados.add(d["path"])
+    lista = []
+    if not ativo():
+        opcoes_pen(discos, iso_dev, lista)
+        opcoes_ficheiro(discos, iso_dev, n_iso, usados, lista)
+        opcoes_particao(discos, iso_dev, n_iso, usados, lista)
+    pen = [o for o in lista if o["tipo"] == "pen"]
+    fich = sorted([o for o in lista if o["tipo"] == "ficheiro"], key=lambda o: -o["max_mb"])
+    part = sorted([o for o in lista if o["tipo"] == "particao"], key=lambda o: (not o["removivel"], -o["max_mb"]))
+    lista = pen + fich + part
+    if lista and not lista[0]["apaga"]:
+        lista[0]["recomendado"] = True
+    if not completo:
+        for o in lista:
+            for k in INTERNOS:
+                o.pop(k, None)
+    return lista
+
+
+# ------------------------------------------------------------------ criar
+
+class Limpeza:
+    """Pilha de ações a desfazer (desmontar, losetup -d) em caso de erro e no fim."""
+
+    def __init__(self):
+        self.acoes = []
+
+    def __call__(self, f, *a):
+        self.acoes.append((f, a))
+
+    def correr(self):
+        while self.acoes:
+            f, a = self.acoes.pop()
+            try:
+                f(*a)
+            except Exception as e:  # noqa: BLE001
+                print(f"(limpeza: {e})", file=sys.stderr)
+
+
+def tamanho_upper():
+    r = correr(["du", "-sxb", UPPER], erro=False)
+    try:
+        return int(r.stdout.split()[0])
+    except (IndexError, ValueError):
+        return 0
+
+
+def migrar(dest, de, ate):
+    """Copia a camada de escrita atual (tmpfs) para <dest>/overlay/upper com cp -a (dono, modos,
+    datas, xattrs — incluindo os trusted.overlay.* dos opaque dirs —, ACLs, ligações físicas e os
+    whiteouts, dispositivos de carácter 0/0). Progresso entre 'de' e 'ate' pela ocupação do destino."""
+    up, wk = os.path.join(dest, "overlay", "upper"), os.path.join(dest, "overlay", "work")
+    os.makedirs(up, exist_ok=True)
+    os.makedirs(wk, exist_ok=True)
+    with open(os.path.join(dest, "LEIA-ME.txt"), "w", encoding="utf-8") as f:
+        f.write(f"""Disco de dados persistente do ianinjapelagestao ({ROTULO}).
+
+overlay/upper  camada de escrita do sistema (tudo o que foi alterado em /: a sua conta e
+               pasta pessoal, as senhas de Wi-Fi, os programas instalados, os modelos de IA)
+overlay/work   diretório de trabalho do OverlayFS (não mexer)
+
+No sistema em execução este disco aparece em /mnt/dados. Não altere overlay/
+diretamente enquanto o sistema estiver a usá-lo.
+Para arrancar sem usar este disco: entrada "sem persistência" do menu do GRUB
+(ou acrescente persistencia=nao à linha de comandos do kernel).
+""")
+    if not os.path.isdir(UPPER) or ativo():
+        progresso(ate, "Nada a copiar desta sessão")
+        return
+    total = tamanho_upper()
+    st0 = os.statvfs(dest)
+    usado0 = (st0.f_blocks - st0.f_bfree) * st0.f_frsize
+    fim = threading.Event()
+
+    def acompanhar():
+        ultimo = -1
+        while not fim.wait(1.0):
+            try:
+                st = os.statvfs(dest)
+            except OSError:
+                continue
+            feito = max(0, (st.f_blocks - st.f_bfree) * st.f_frsize - usado0)
+            n = de + int((ate - de) * min(1.0, feito / total)) if total > 0 else de
+            if n != ultimo:
+                ultimo = n
+                progresso(n, f"A copiar a sua conta, as definições e os programas… ({feito // MIB} de {total // MIB} MiB)")
+    progresso(de, f"A copiar a sua conta, as definições e os programas… ({total // MIB} MiB)")
+    t = threading.Thread(target=acompanhar, daemon=True)
+    t.start()
+    try:
+        correr(["cp", "-a", UPPER + "/.", up + "/"], timeout=None)
+    finally:
+        fim.set()
+        t.join(2)
+    # ficheiros temporários desta sessão não interessam ao arranque seguinte
+    for rel in ("tmp", "var/tmp"):
+        d = os.path.join(up, rel)
+        if os.path.isdir(d) and not os.path.islink(d):
+            for n in os.listdir(d):
+                p = os.path.join(d, n)
+                try:
+                    if os.path.isdir(p) and not os.path.islink(p):
+                        shutil.rmtree(p)
+                    else:
+                        os.unlink(p)
+                except OSError:
+                    pass
+    progresso(ate, f"Cópia concluída ({total // MIB} MiB)")
+
+
+def esperar_dispositivo(dev, segundos=15):
+    for _ in range(segundos * 10):
+        try:
+            if os.path.exists(dev) and os.stat(dev).st_rdev:
+                return True
+        except OSError:
+            pass
+        time.sleep(0.1)
+    return False
+
+
+def esperar_livre(dev, segundos=20):
+    """Espera até o dispositivo aceitar uma abertura exclusiva (O_EXCL). Logo a seguir a criar uma
+    partição (partx) ou a apagar assinaturas (wipefs) o udev ainda está a examiná-la e o mkfs.ext4
+    recusava com 'aparenta estar em uso pelo sistema' (EBUSY transitório, visto no teste F11)."""
+    correr(["udevadm", "settle", "-t", "10"], erro=False)
+    for _ in range(segundos * 5):
+        try:
+            os.close(os.open(dev, os.O_RDONLY | os.O_EXCL | os.O_CLOEXEC))
+            return
+        except OSError as e:
+            if e.errno != 16:          # EBUSY
+                raise Erro(f"{dev}: {e.strerror}") from None
+        time.sleep(0.2)
+    raise Erro(f"{dev} continua em uso pelo sistema (montado? udev?) — não foi formatado")
+
+
+def formatar_ext4(dev):
+    esperar_livre(dev)
+    correr(["mkfs.ext4", "-q", "-F", "-L", ROTULO, dev], timeout=None)
+
+
+def criar_pen(opcao, tamanho_mb, limpeza):
+    disco = opcao["id"].split(":", 1)[1]
+    inicio = opcao["inicio"]
+    setores = tamanho_mb * MIB // 512
+    progresso(5, "A preparar a tabela de partições da pen…")
+    if opcao["pttype"] == "gpt":
+        # a ISO híbrida traz a cópia de segurança da GPT no fim da IMAGEM, não no fim da pen:
+        # move-se para o fim do disco (só assim o espaço a seguir à imagem fica utilizável)
+        correr(["sfdisk", "--no-reread", "--relocate", "gpt-bak-std", disco], timeout=120)
+        tipo = GUID_LINUX
+    else:
+        tipo = "83"
+    linha = f"start={inicio}, size={setores}, type={tipo}" + (f", name={ROTULO}" if opcao["pttype"] == "gpt" else "") + "\n"
+    correr(["sfdisk", "--no-reread", "--no-tell-kernel", "--append", disco], entrada=linha, timeout=120)
+    progresso(15, "A dar a conhecer a nova partição ao sistema…")
+    # a ISO está montada a partir do disco inteiro: o BLKRRPART falharia (em uso); o partx acrescenta
+    # a partição nova uma a uma (BLKPG), o que funciona mesmo assim
+    correr(["partx", "-a", disco], erro=False)
+    correr(["partx", "-u", disco], erro=False)
+    correr(["udevadm", "settle", "-t", "10"], erro=False)
+    novo = ""
+    for _ in range(50):
+        for d in lsblk():
+            if d["pkname"] == disco and d["start"] == inicio:
+                novo = d["path"]
+        if novo:
+            break
+        time.sleep(0.2)
+    if not novo or not esperar_dispositivo(novo):
+        raise Erro(f"a partição nova em {disco} (setor {inicio}) não apareceu no sistema")
+    progresso(25, f"A formatar {novo} (ext4 {ROTULO})…")
+    formatar_ext4(novo)
+    correr(["udevadm", "settle", "-t", "10"], erro=False)
+    mnt = montar_temp(novo, "ext4")
+    limpeza(desmontar, mnt)
+    migrar(mnt, 40, 90)
+    return novo
+
+
+def criar_ficheiro(opcao, tamanho_mb, limpeza):
+    dev = opcao["id"].split(":", 1)[1]
+    fs = opcao["fstype"]
+    progresso(5, f"A abrir {dev} ({fs.upper()})…")
+    base = montar_temp(dev, fs)
+    limpeza(desmontar, base)
+    pasta = os.path.join(base, os.path.dirname(IMG))
+    os.makedirs(pasta, exist_ok=True)
+    img = os.path.join(base, IMG)
+    if os.path.exists(img):
+        raise Erro(f"já existe /{IMG} em {dev}")
+    progresso(10, f"A reservar {gb(tamanho_mb)} para o ficheiro ianinja-dados.img…")
+    r = correr(["fallocate", "-l", f"{tamanho_mb}M", img], erro=False, timeout=None)
+    if r.returncode != 0:
+        # FAT e exFAT não reservam espaço sem o escrever: escreve-se por blocos, com progresso
+        try:
+            os.unlink(img)
+        except OSError:
+            pass
+        bloco = 16 * MIB
+        total = tamanho_mb * MIB
+        zeros = b"\0" * bloco
+        with open(img, "wb") as f:
+            feito = 0
+            ultimo = -1
+            while feito < total:
+                n = min(bloco, total - feito)
+                f.write(zeros[:n])
+                feito += n
+                p = 10 + 25 * feito // total
+                if p != ultimo:
+                    ultimo = p
+                    progresso(p, f"A reservar espaço para o ficheiro… ({feito // MIB} de {total // MIB} MiB)")
+            f.flush()
+            os.fsync(f.fileno())
+    loop = correr(["losetup", "-f", "--show", img]).stdout.strip()
+    limpeza(correr, ["losetup", "-d", loop], None, False)
+    progresso(36, f"A criar o sistema de ficheiros ext4 {ROTULO} dentro do ficheiro…")
+    formatar_ext4(loop)
+    mnt = montar_temp(loop, "ext4")
+    limpeza(desmontar, mnt)
+    migrar(mnt, 40, 90)
+    return f"{dev} (/{IMG})"
+
+
+def criar_particao(opcao, limpeza, confirmo):
+    dev = opcao["id"].split(":", 1)[1]
+    if not confirmo:
+        raise Erro(f"formatar {dev} apaga tudo o que lá está: é preciso --confirmo-apagar")
+    progresso(5, f"A apagar as assinaturas antigas de {dev}…")
+    correr(["wipefs", "-a", "-q", dev], erro=False)
+    progresso(15, f"A formatar {dev} (ext4 {ROTULO})…")
+    formatar_ext4(dev)
+    correr(["udevadm", "settle", "-t", "10"], erro=False)
+    mnt = montar_temp(dev, "ext4")
+    limpeza(desmontar, mnt)
+    migrar(mnt, 40, 90)
+    return dev
+
+
+def criar(oid, tamanho_mb, confirmo):
+    if os.geteuid() != 0:
+        raise Erro("é preciso ser root")
+    if not sessao_live():
+        raise Erro("só está disponível no sistema live ianinjapelagestao em execução")
+    if ativo():
+        raise Erro("os dados já estão a ser guardados neste arranque")
+    m = re.match(r"^(pen|ficheiro|particao):(/dev/[A-Za-z0-9/_+.-]+)$", oid or "")
+    if not m:
+        raise Erro(f"id inválido: {oid!r} (use um id de 'listar', ex.: pen:/dev/sdb)")
+    os.makedirs(TRABALHO, exist_ok=True)
+    tranca = open(LOCK, "w")  # noqa: SIM115 — fica aberto até o processo acabar
+    try:
+        fcntl.flock(tranca, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        raise Erro("já está a decorrer outra criação") from None
+    progresso(0, "A verificar os discos…")
+    # as verificações de segurança são as de 'listar': só se cria o que lá aparece
+    opcao = None
+    for o in listar(completo=True):
+        if o["id"] == oid:
+            opcao = o
+    if opcao is None:
+        raise Erro(f"{oid} não está disponível (ver 'ianinja-persistencia listar')")
+    tamanho_mb = int(tamanho_mb or opcao["sugerido_mb"])
+    if opcao["tipo"] == "particao":
+        tamanho_mb = opcao["max_mb"]
+    if tamanho_mb < MIN_MB:
+        raise Erro(f"tamanho mínimo: {MIN_MB} MiB")
+    if tamanho_mb > opcao["max_mb"]:
+        raise Erro(f"tamanho máximo para {oid}: {opcao['max_mb']} MiB")
+    limpeza = Limpeza()
+    try:
+        if opcao["tipo"] == "pen":
+            dev = criar_pen(opcao, tamanho_mb, limpeza)
+        elif opcao["tipo"] == "ficheiro":
+            dev = criar_ficheiro(opcao, tamanho_mb, limpeza)
+        else:
+            dev = criar_particao(opcao, limpeza, confirmo)
+        progresso(92, "A gravar tudo no disco (sync)…")
+        correr(["sync"], timeout=None)
+    finally:
+        limpeza.correr()
+        correr(["sync"], erro=False, timeout=None)
+    progresso(100, f"Concluído: a partir do próximo arranque os dados ficam guardados em {dev}")
+    return oid
+
+
+# ------------------------------------------------------------------ linha de comandos
+
+def uso(rc=0):
+    print(__doc__.strip())
+    sys.exit(rc)
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "--ajuda"):
+        uso(0 if argv else 1)
+    acao = argv[0]
+    js = "--json" in argv
+    try:
+        if acao == "estado":
+            e = estado()
+            if js:
+                print(json.dumps(e, ensure_ascii=False))
+            elif e["ativo"]:
+                extra = f", ficheiro {e['ficheiro']}" if e.get("ficheiro") else ""
+                print(f"ativo: {e['tipo']} em {e['dispositivo']}{extra} ({e['montado_em']}); "
+                      f"{e['livre_mb']} MiB livres de {e['total_mb']} MiB")
+            else:
+                print("inativo: as alterações perdem-se ao desligar (camada de escrita em RAM)")
+            return 0
+        if acao == "listar":
+            lista = listar()
+            if js:
+                print(json.dumps(lista, ensure_ascii=False))
+            elif not lista:
+                print("nenhum destino disponível" + ("" if sessao_live() else " (fora do sistema live)"))
+            else:
+                for o in lista:
+                    print(f"{o['id']:28} {o['titulo']} — {o['detalhe']} [até {o['max_mb']} MiB"
+                          f"{', APAGA TUDO' if o['apaga'] else ''}{', recomendado' if o['recomendado'] else ''}]")
+            return 0
+        if acao == "criar":
+            oid = argv[1] if len(argv) > 1 and not argv[1].startswith("--") else ""
+            tam = None
+            if "--tamanho-mb" in argv:
+                i = argv.index("--tamanho-mb")
+                try:
+                    tam = int(argv[i + 1])
+                except (IndexError, ValueError):
+                    print("ERRO --tamanho-mb precisa de um número inteiro (MiB)", flush=True)
+                    return 1
+            r = criar(oid, tam, "--confirmo-apagar" in argv)
+            print(f"OK {r}", flush=True)
+            return 0
+    except (Erro, OSError, subprocess.SubprocessError, ValueError) as e:
+        print(f"ERRO {e}", flush=True)
+        return 1
+    print(f"ERRO ação desconhecida: {acao}", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

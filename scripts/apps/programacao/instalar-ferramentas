@@ -1,0 +1,454 @@
+#!/bin/bash
+# instalar-ferramentas — instala (ou atualiza) a pedido as ferramentas de programação que não vão
+# dentro da ISO do ianinjapelagestao (grandes, ou com versões que mudam todos os meses):
+# descarrega as versões oficiais dos sites dos projetos.
+#
+# Uso: instalar-ferramentas [rust|go|java|tudo]...   (sem argumentos: menu)
+#      instalar-ferramentas -l           estado das ferramentas (instalada? versão? onde?)
+#      instalar-ferramentas -f <ferr.>   reinstala mesmo que já esteja na versão mais recente
+#      instalar-ferramentas -s <ferr.>   não pergunta nada (aceita os avisos)
+#
+#   rust   Rust (rustc, cargo, rustfmt, clippy) com o rustup -> ~/.cargo e ~/.rustup do utilizador
+#   go     Go (go.dev)                                      -> /usr/local/go, comandos go e gofmt
+#   java   OpenJDK LTS mais recente (Eclipse Temurin)       -> /opt/jdk, comandos java, javac...
+# Já vêm no sistema: GCC, G++, Make, CMake, Meson, Ninja, Git, Python 3 (pip, venv, sqlite3),
+# Node.js + npm, GDB, Valgrind, Perl, LLVM/Clang. Repetir o comando atualiza para a versão mais
+# recente. Usa sudo para o que é do sistema (Go, Java); o Rust fica na pasta pessoal.
+#
+# Variáveis para testes (fora do sistema): IA_FERR_RAIZ=<dir> instala em <dir>/usr/local, <dir>/opt...
+# em vez de /; IA_FERR_SEM_SUDO=1 não usa sudo; IA_FERR_SEM_EXECUTAR=1 não corre nenhum binário
+# nem instalador descarregado (só descarrega, verifica e extrai).
+set -uo pipefail
+export LC_ALL=${LC_ALL:-C.UTF-8}
+
+RAIZ=${IA_FERR_RAIZ:-}
+RAIZ=${RAIZ%/}
+SEM_EXECUTAR=${IA_FERR_SEM_EXECUTAR:-0}
+ESTADO=$RAIZ/var/lib/instalar-ferramentas
+FORCAR=0
+SIM=0
+JANELA=0
+NOME=$(basename "$0")
+
+# Origens oficiais
+RUSTUP_INIT=https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init
+GO_API='https://go.dev/dl/?mode=json'
+GO_DL=https://go.dev/dl
+JAVA_INFO=https://api.adoptium.net/v3/info/available_releases
+JAVA_API=https://api.adoptium.net/v3/assets/latest
+
+FERRAMENTAS=(rust go java)
+# Espaço necessário (MiB) durante a instalação: descarga + extração, com margem
+declare -A ESPACO=([rust]=1100 [go]=600 [java]=700)
+declare -A TITULO=([rust]="Rust (rustup)" [go]="Go" [java]="Java (OpenJDK Temurin)")
+declare -A LICENCA=(
+  [rust]="https://www.rust-lang.org/policies/licenses (MIT / Apache-2.0)"
+  [go]="https://go.dev/LICENSE (BSD-3-Clause)"
+  [java]="https://adoptium.net/about/ (GPLv2 com Classpath Exception)")
+
+if [ -t 1 ]; then
+  N=$'\e[1m'; V=$'\e[32m'; A=$'\e[33m'; E=$'\e[31m'; R=$'\e[0m'
+else
+  N=; V=; A=; E=; R=
+fi
+msg()   { echo "${N}==>${R} $*"; }
+ok()    { echo "${V}OK${R}  $*"; }
+aviso() { echo "${A}Aviso:${R} $*" >&2; }
+falha() { echo "${E}Erro:${R} $*" >&2; return 1; }
+erro()  { echo "${E}$NOME:${R} $*" >&2; exit 1; }
+
+uso() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+# --- privilégios: o que é do sistema corre como root (sudo; o ninja tem sudo sem senha)
+eh_root() { [ "$(id -u)" = 0 ]; }
+como_root() {
+  if eh_root || [ "${IA_FERR_SEM_SUDO:-0}" = 1 ]; then "$@"; else sudo "$@"; fi
+}
+preparar_sudo() {
+  eh_root || [ "${IA_FERR_SEM_SUDO:-0}" = 1 ] && return 0
+  type -P sudo > /dev/null || falha "é preciso o sudo (ou correr como root) para instalar no sistema" || return 1
+  sudo -v || falha "o sudo não autorizou (senha errada?)"
+}
+
+# Utilizador "real" (quem chamou o comando, mesmo através de sudo) e a sua pasta pessoal
+utilizador() {
+  if eh_root; then echo "${SUDO_USER:-root}"; else id -un; fi
+}
+pasta_de() { getent passwd "$1" | cut -d: -f6; }
+# como_utilizador <cmd...> — corre como o utilizador real (para o que fica na pasta pessoal)
+como_utilizador() {
+  local u; u=$(utilizador)
+  if eh_root && [ "$u" != root ]; then sudo -u "$u" -H "$@"; else "$@"; fi
+}
+
+# --- verificações prévias
+tem_internet() {
+  local u
+  for u in https://static.rust-lang.org https://go.dev https://api.adoptium.net https://github.com; do
+    curl -sS -o /dev/null -I --max-time 12 "$u" 2> /dev/null && return 0   # qualquer resposta HTTP serve
+  done
+  return 1
+}
+
+# MiB livres no sistema de ficheiros que contém (ou vai conter) o caminho
+livre_mib() {
+  local d=$1
+  while [ ! -d "$d" ]; do d=$(dirname "$d"); done
+  df -Pk "$d" | awk 'NR==2{print int($4/1024)}'
+}
+verificar_espaco() { # verificar_espaco <ferramenta> <caminho>
+  local precisa=${ESPACO[$1]} livre
+  livre=$(livre_mib "$2")
+  if [ "$livre" -lt "$precisa" ]; then
+    falha "espaço insuficiente para ${TITULO[$1]}: são precisos ~$precisa MiB em $2, há $livre MiB livres" || return 1
+  fi
+  echo "Espaço livre em $2: $livre MiB (necessário ~$precisa MiB)"
+}
+
+sessao_live() { [ -z "$RAIZ" ] && mountpoint -q /run/live/iso 2> /dev/null; }
+com_persistencia() { mountpoint -q /mnt/dados 2> /dev/null; }
+
+aviso_live() {
+  sessao_live || return 0
+  if com_persistencia; then
+    echo "Sessão live com persistência (disco IANINJA-DADOS em /mnt/dados): o que instalar fica guardado."
+    return 0
+  fi
+  echo
+  echo "${A}################################################################${R}"
+  echo "  Está numa sessão live SEM persistência: tudo o que instalar fica"
+  echo "  na memória RAM e PERDE-SE ao desligar ou reiniciar o computador."
+  echo "  Para guardar as ferramentas entre arranques, crie um disco de dados:"
+  echo "      sudo ia-criar-persistencia /dev/<partição>      (ex.: /dev/sdb1)"
+  echo "  e reinicie; depois volte a correr $NOME."
+  echo "  (As ferramentas também ocupam RAM: o Rust precisa de ~1 GB livre.)"
+  echo "${A}################################################################${R}"
+  [ $SIM = 1 ] || [ ! -t 0 ] && return 0
+  local r
+  read -r -p "Continuar mesmo assim? [S/n] " r
+  case $r in [nN]*) echo "Cancelado."; exit 1 ;; esac
+}
+
+licenca() { # licenca <ferramenta>
+  echo "${TITULO[$1]} é software livre, descarregado diretamente do site oficial:"
+  echo "  ${LICENCA[$1]}"
+}
+
+# --- utilitários de descarga
+# py <código> [args...] — Python lê JSON da entrada padrão (o python3 vem sempre no sistema)
+py() { python3 -I -c "import json, sys
+d = json.load(sys.stdin)
+$1" "${@:2}"; }
+
+# extrair_verificado <url> <sha256|""> <destino> [opções do tar]
+# Descarrega e extrai em simultâneo (sem guardar o arquivo: poupa RAM numa sessão live) e
+# confere o SHA-256 no fim; se não bater certo, quem chama apaga o que foi extraído.
+extrair_verificado() {
+  local url=$1 sha=$2 dest=$3; shift 3
+  local soma rc=0 pid
+  soma=$( { curl -fL --retry 3 --progress-bar "$url" || echo FALHOU-DESCARGA >&2; } \
+          | tee >(como_root tar -x "$@" --no-same-owner -C "$dest"; echo $? > "$TMPD/tar.rc") \
+          | sha256sum | cut -d' ' -f1 )
+  pid=$!
+  wait "$pid" 2> /dev/null
+  # a substituição de processos pode ainda não ter escrito o código de saída
+  local i; for i in $(seq 50); do [ -s "$TMPD/tar.rc" ] && break; sleep 0.2; done
+  rc=$(cat "$TMPD/tar.rc" 2> /dev/null || echo 1); rm -f "$TMPD/tar.rc"
+  [ "$rc" = 0 ] || { falha "falhou a descarga/extração de $url"; return 1; }
+  if [ -n "$sha" ]; then
+    [ "$soma" = "$sha" ] || { falha "SHA-256 errado ($soma, esperado $sha) em $url"; return 1; }
+    echo "SHA-256 verificado: $soma"
+  else
+    aviso "o projeto não indicou o SHA-256; descarga feita por HTTPS ($soma)"
+  fi
+}
+
+# troca_dir <novo> <final> — substitui o diretório final pelo novo (quase atómico)
+troca_dir() {
+  local novo=$1 fim=$2
+  como_root mkdir -p "$(dirname "$fim")" || return 1
+  como_root rm -rf "$fim.antigo" || return 1
+  if [ -e "$fim" ]; then como_root mv "$fim" "$fim.antigo" || return 1; fi
+  como_root mv "$novo" "$fim" || { [ -e "$fim.antigo" ] && como_root mv "$fim.antigo" "$fim"; return 1; }
+  como_root rm -rf "$fim.antigo"
+}
+
+guardar_versao() { # guardar_versao <ferramenta> <versão>
+  como_root mkdir -p "$ESTADO" && echo "$2" | como_root tee "$ESTADO/$1.versao" > /dev/null
+}
+versao_guardada() { cat "$ESTADO/$1.versao" 2> /dev/null || true; }
+
+# ligar_comandos <dir bin> <nome>... — links em /usr/local/bin (já está no PATH de todos)
+ligar_comandos() {
+  local bin=$1 c; shift
+  como_root mkdir -p "$RAIZ/usr/local/bin" || return 1
+  for c in "$@"; do
+    [ -x "$RAIZ$bin/$c" ] || continue
+    como_root ln -sfn "$bin/$c" "$RAIZ/usr/local/bin/$c" || return 1
+  done
+}
+# desligar_comandos <dir bin> — apaga os links de /usr/local/bin que apontam para <dir bin>
+desligar_comandos() {
+  local l
+  for l in "$RAIZ"/usr/local/bin/*; do
+    [ -L "$l" ] || continue
+    case $(readlink "$l") in "$1"/*) como_root rm -f "$l" ;; esac
+  done
+}
+
+# ======================================================================== Rust
+instalar_rust() {
+  msg "Rust (rustup)"
+  licenca rust
+  local u casa
+  u=$(utilizador)
+  [ "$u" != root ] || { falha "o Rust instala-se na pasta pessoal de um utilizador normal: corra '$NOME rust' como esse utilizador (ex.: ninja), não como root"; return 1; }
+  casa=$(pasta_de "$u")
+  [ -d "$casa" ] || { falha "pasta pessoal de $u não encontrada"; return 1; }
+  local rustup=$casa/.cargo/bin/rustup
+  if [ -x "$rustup" ] && [ $FORCAR = 0 ]; then
+    echo "O rustup já está instalado: a atualizar o rustup e o toolchain stable ..."
+    if [ "$SEM_EXECUTAR" = 1 ]; then ok "modo de teste: atualização não executada"; return 0; fi
+    como_utilizador "$rustup" self update || aviso "o rustup não se conseguiu atualizar a si próprio"
+    como_utilizador "$rustup" update stable || { falha "rustup update falhou"; return 1; }
+  else
+    verificar_espaco rust "$casa" || return 1
+    echo "A descarregar $RUSTUP_INIT ..."
+    curl -fL --retry 3 --progress-bar -o "$TMPD/rustup-init" "$RUSTUP_INIT" || { falha "falhou a descarga do rustup-init"; return 1; }
+    local sha soma
+    sha=$(curl -fsSL --max-time 30 "$RUSTUP_INIT.sha256" | cut -d' ' -f1) || sha=
+    soma=$(sha256sum "$TMPD/rustup-init" | cut -d' ' -f1)
+    [ -n "$sha" ] || { falha "não consegui obter $RUSTUP_INIT.sha256"; return 1; }
+    [ "$soma" = "$sha" ] || { falha "SHA-256 errado no rustup-init ($soma, esperado $sha)"; return 1; }
+    echo "SHA-256 verificado: $soma"
+    chmod 755 "$TMPD/rustup-init" || return 1
+    if [ "$SEM_EXECUTAR" = 1 ]; then ok "modo de teste: rustup-init descarregado e verificado, não executado"; return 0; fi
+    # perfil mínimo + rustfmt e clippy: sem a documentação local (~600 MB); ver: rustup doc
+    # --no-modify-path: o /etc/profile.d/programacao.sh já põe ~/.cargo/bin no PATH
+    echo "A instalar o toolchain stable para o utilizador $u (rustc, cargo, rustfmt, clippy) ..."
+    como_utilizador "$TMPD/rustup-init" -y --no-modify-path --profile minimal \
+      --default-toolchain stable -c rustfmt -c clippy || { falha "o rustup-init falhou"; return 1; }
+  fi
+  [ -x "$casa/.cargo/bin/rustc" ] || { falha "o rustup terminou mas não existe $casa/.cargo/bin/rustc"; return 1; }
+  local v; v=$(como_utilizador "$casa/.cargo/bin/rustc" --version 2> /dev/null)
+  ok "${v:-Rust} instalado em $casa/.cargo (comandos: rustc, cargo, rustup; abra um terminal novo se 'cargo' não for encontrado)"
+  echo "   Mais componentes: rustup component add rust-analyzer rust-src | documentação: rustup component add rust-docs"
+}
+
+versao_rust() {
+  local casa; casa=$(pasta_de "$(utilizador)")
+  [ -n "$casa" ] && [ -x "$casa/.cargo/bin/rustc" ] || return 0
+  if [ "$SEM_EXECUTAR" = 1 ]; then echo "?"; else como_utilizador "$casa/.cargo/bin/rustc" --version 2> /dev/null | cut -d' ' -f2; fi
+}
+
+# ======================================================================== Go
+versao_go() { head -1 "$RAIZ/usr/local/go/VERSION" 2> /dev/null || true; }
+
+instalar_go() {
+  msg "Go"
+  licenca go
+  local info ver fich sha atual
+  info=$(curl -fsSL --max-time 30 "$GO_API") || { falha "não consegui consultar $GO_API"; return 1; }
+  read -r ver fich sha < <(py '
+for r in d:
+    if not r.get("stable"):
+        continue
+    for f in r["files"]:
+        if f["os"] == "linux" and f["arch"] == "amd64" and f["kind"] == "archive":
+            print(r["version"], f["filename"], f["sha256"]); sys.exit()' <<< "$info" 2> /dev/null) || true
+  [ -n "${ver:-}" ] && [ -n "${fich:-}" ] && [ -n "${sha:-}" ] || { falha "resposta inesperada de $GO_API"; return 1; }
+  atual=$(versao_go)
+  if [ "$atual" = "$ver" ] && [ $FORCAR = 0 ]; then
+    ok "o Go já está na versão mais recente ($ver); a refazer só os comandos"
+  else
+    echo "Versão ${atual:+$atual -> }$ver"
+    verificar_espaco go "$RAIZ/usr/local" || return 1
+    local st=$RAIZ/usr/local/.go.novo
+    como_root rm -rf "$st" && como_root mkdir -p "$st" || return 1
+    echo "A descarregar e extrair $GO_DL/$fich ..."
+    extrair_verificado "$GO_DL/$fich" "$sha" "$st" -z || { como_root rm -rf "$st"; return 1; }
+    [ -x "$st/go/bin/go" ] || { como_root rm -rf "$st"; falha "o arquivo do Go não tem go/bin/go"; return 1; }
+    troca_dir "$st/go" "$RAIZ/usr/local/go" || { como_root rm -rf "$st"; return 1; }
+    como_root rm -rf "$st"
+    guardar_versao go "$ver"
+  fi
+  ligar_comandos /usr/local/go/bin go gofmt || return 1
+  local v=
+  [ "$SEM_EXECUTAR" = 1 ] || v=$("$RAIZ/usr/local/go/bin/go" version 2> /dev/null)
+  ok "${v:-Go $ver} instalado em /usr/local/go (comandos: go, gofmt; programas de 'go install' vão para ~/go/bin)"
+}
+
+# ======================================================================== Java
+versao_java() {
+  [ -x "$RAIZ/opt/jdk/bin/java" ] || return 0
+  sed -n 's/^IMPLEMENTOR_VERSION="\(.*\)"/\1/p' "$RAIZ/opt/jdk/release" 2> /dev/null | head -1 | grep . || versao_guardada java
+}
+
+instalar_java() {
+  msg "Java (OpenJDK, Eclipse Temurin)"
+  licenca java
+  local lts info url sha nome atual
+  lts=$(curl -fsSL --max-time 30 "$JAVA_INFO" | py 'print(d["most_recent_lts"])' 2> /dev/null) || lts=
+  [ -n "$lts" ] || { falha "não consegui consultar $JAVA_INFO"; return 1; }
+  local api="$JAVA_API/$lts/hotspot?architecture=x64&image_type=jdk&os=linux&vendor=eclipse"
+  info=$(curl -fsSL --max-time 30 "$api") || { falha "não consegui consultar $api"; return 1; }
+  read -r url sha nome < <(py '
+for a in d:
+    p = a["binary"]["package"]
+    if p["name"].endswith(".tar.gz"):
+        print(p["link"], p["checksum"], a["release_name"]); break' <<< "$info" 2> /dev/null) || true
+  [ -n "${url:-}" ] && [ -n "${sha:-}" ] && [ -n "${nome:-}" ] || { falha "resposta inesperada de $api"; return 1; }
+  atual=$(versao_guardada java)
+  [ -x "$RAIZ/opt/jdk/bin/java" ] || atual=
+  if [ "$atual" = "$nome" ] && [ $FORCAR = 0 ]; then
+    ok "o Java já está na versão mais recente ($nome); a refazer só os comandos"
+  else
+    echo "Versão ${atual:+$atual -> }$nome (Java $lts LTS)"
+    verificar_espaco java "$RAIZ/opt" || return 1
+    local st=$RAIZ/opt/.jdk.novo d
+    como_root rm -rf "$st" && como_root mkdir -p "$st" || return 1
+    echo "A descarregar e extrair $url ..."
+    extrair_verificado "$url" "$sha" "$st" -z || { como_root rm -rf "$st"; return 1; }
+    d=$(find "$st" -mindepth 1 -maxdepth 1 -type d | head -1)
+    [ -n "$d" ] && [ -x "$d/bin/java" ] || { como_root rm -rf "$st"; falha "o arquivo do JDK não tem bin/java"; return 1; }
+    desligar_comandos /opt/jdk/bin
+    troca_dir "$d" "$RAIZ/opt/jdk" || { como_root rm -rf "$st"; return 1; }
+    como_root rm -rf "$st"
+    guardar_versao java "$nome"
+  fi
+  local cmds=() f
+  for f in "$RAIZ"/opt/jdk/bin/*; do [ -x "$f" ] && cmds+=("$(basename "$f")"); done
+  ligar_comandos /opt/jdk/bin "${cmds[@]}" || return 1
+  local v=
+  [ "$SEM_EXECUTAR" = 1 ] || v=$("$RAIZ/opt/jdk/bin/java" -version 2>&1 | head -1)
+  ok "${v:-Java $nome} instalado em /opt/jdk (comandos: java, javac, jar, jshell...)"
+  echo "   JAVA_HOME=/opt/jdk fica definido nas sessões novas (ou já: export JAVA_HOME=/opt/jdk)"
+}
+
+# ======================================================================== estado / menu
+estado_ferr() { # estado_ferr <ferramenta> -> uma linha curta
+  local v casa
+  case $1 in
+    rust)
+      casa=$(pasta_de "$(utilizador)"); v=$(versao_rust)
+      [ -n "$v" ] && echo "instalado $v ($casa/.cargo, utilizador $(utilizador))" ;;
+    go) v=$(versao_go); [ -n "$v" ] && echo "instalado $v (/usr/local/go)" ;;
+    java) v=$(versao_java); [ -n "$v" ] && echo "instalado $v (/opt/jdk)" ;;
+  esac
+}
+
+listar() {
+  local a e
+  echo "Ferramentas instaláveis (descarregadas dos sites oficiais):"
+  for a in "${FERRAMENTAS[@]}"; do
+    e=$(estado_ferr $a)
+    printf '  %-6s %-24s %s\n' "$a" "${TITULO[$a]}" "${e:-não instalado}"
+  done
+  echo "Já no sistema:"
+  local c
+  for c in gcc g++ make cmake meson ninja git python3 pip3 node npm gdb valgrind perl clang; do
+    type -P $c > /dev/null && printf '%s ' "$c"
+  done
+  echo
+  if sessao_live; then
+    com_persistencia && echo "Sessão live com persistência (/mnt/dados)." \
+      || echo "Sessão live SEM persistência: o que instalar perde-se ao desligar (ver: ia-criar-persistencia)."
+  fi
+  echo "Espaço livre: /usr/local $(livre_mib "$RAIZ/usr/local") MiB, /opt $(livre_mib "$RAIZ/opt") MiB, pasta pessoal $(livre_mib "$(pasta_de "$(utilizador)")") MiB"
+}
+
+instalar() { # instalar <ferramenta>...
+  local a falhas=() feitas=()
+  for a in "$@"; do
+    case $a in go|java) preparar_sudo || return 1; break ;; esac
+  done
+  for a in "$@"; do
+    echo
+    if "instalar_$a"; then feitas+=("$a"); else falhas+=("$a"); fi
+  done
+  echo
+  [ ${#feitas[@]} -gt 0 ] && ok "concluído: ${feitas[*]}"
+  [ ${#falhas[@]} -eq 0 ] || { falha "falhou: ${falhas[*]} (repita o comando para tentar de novo)"; return 1; }
+}
+
+preparar() {
+  TMPD=$(mktemp -d "${TMPDIR:-/tmp}/instalar-ferramentas.XXXXXX") || erro "não consegui criar uma pasta temporária"
+  chmod 755 "$TMPD"     # o rustup-init descarregado por root (sudo) corre como o utilizador
+  trap 'rm -rf "$TMPD"' EXIT
+  exec 9> "$TMPD/../instalar-ferramentas-$(id -u).lock"
+  flock -n 9 || erro "já está a correr outro $NOME"
+  local c
+  for c in curl tar gzip sha256sum python3; do type -P $c > /dev/null || erro "falta o comando $c"; done
+  msg "A verificar a ligação à Internet ..."
+  tem_internet || erro "sem ligação à Internet (ligue o cabo ou use: ligar-wifi) e tente de novo"
+  aviso_live
+}
+
+menu() {
+  local r lista
+  while :; do
+    echo
+    echo "${N}Instalar ferramentas de programação — ianinjapelagestao${R}"
+    echo "(já vêm no sistema: GCC, Make, CMake, Git, Python 3 + pip, Node.js + npm, GDB, Valgrind, Clang)"
+    local i=1 a e
+    for a in "${FERRAMENTAS[@]}"; do
+      e=$(estado_ferr $a)
+      printf '  %d) %-24s %s\n' $i "${TITULO[$a]}" "${e:-não instalado}"
+      i=$((i+1))
+    done
+    echo "  4) Tudo"
+    echo "  5) Ver o estado"
+    echo "  0) Sair"
+    read -r -p "Escolha (pode indicar vários, ex.: 1 3): " r || return 0
+    lista=()
+    for i in $r; do
+      case $i in
+        1) lista+=(rust) ;; 2) lista+=(go) ;; 3) lista+=(java) ;;
+        4) lista=("${FERRAMENTAS[@]}"); break ;;
+        5) echo; listar; continue 2 ;;
+        0) return 0 ;;
+        *) echo "Opção inválida: $i"; continue 2 ;;
+      esac
+    done
+    [ ${#lista[@]} -gt 0 ] || continue
+    [ -n "${TMPD:-}" ] || preparar
+    instalar "${lista[@]}"
+  done
+}
+
+# ======================================================================== principal
+ferr=()
+lista_estado=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    -h|--help|--ajuda) uso 0 ;;
+    -l|--listar|--estado) lista_estado=1 ;;
+    -f|--forcar) FORCAR=1 ;;
+    -s|--sim) SIM=1 ;;
+    --janela) JANELA=1 ;;
+    rust|rustup|cargo) ferr+=(rust) ;;
+    go|golang) ferr+=(go) ;;
+    java|jdk|openjdk) ferr+=(java) ;;
+    tudo|todas|all) ferr+=("${FERRAMENTAS[@]}") ;;
+    *) echo "$NOME: opção ou ferramenta desconhecida: $1" >&2; uso 1 ;;
+  esac
+  shift
+done
+
+if [ $lista_estado = 1 ]; then listar; exit 0; fi
+
+rc=0
+if [ ${#ferr[@]} -eq 0 ]; then
+  [ -t 0 ] || uso 1
+  menu || rc=$?
+else
+  # sem repetidos, pela ordem dada
+  mapfile -t ferr < <(printf '%s\n' "${ferr[@]}" | awk '!v[$0]++')
+  preparar
+  instalar "${ferr[@]}" || rc=$?
+fi
+if [ $JANELA = 1 ]; then
+  echo
+  read -r -p "Prima Enter para fechar esta janela. " _ || true
+fi
+exit $rc

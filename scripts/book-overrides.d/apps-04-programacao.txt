@@ -1,0 +1,18 @@
+# F8e — aplicações, bloco 4: ambiente de programação (módulo sqlite3 do Python, requests, pytest,
+# six, Node.js + npm, GDB, Valgrind). Ver scripts/apps/decisoes-04.txt.
+# página                                        tipo     blocos  # motivo
+blfs/general/python3                            replace  1       # opções do LFS sem --enable-optimizations; confirma que o configure encontrou o SQLite
+blfs/general/python3                            skip     2       # suite de testes (+2,8 SBU): o interpretador não é substituído
+blfs/general/python3                            replace  3       # instala só o módulo _sqlite3 em lib-dynload (o resto do Python do LFS fica)
+blfs/general/python3                            skip     4,5,6   # documentação HTML (download adicional não descarregado) e PYTHONDOCS
+blfs/general/python-dependencies@setuptools_scm skip     3       # testes: precisam do pytest (instalado depois) e de git/mercurial com rede
+blfs/general/python-dependencies@charset-normalizer skip 3       # testes: pip install pytest-cov precisa de rede
+blfs/general/python-dependencies@urllib3        skip     3       # testes: pip install de 11 módulos precisa de rede
+blfs/general/python-modules@requests            skip     4       # testes: pip install (sphinx, flask, pytest-httpbin...) precisa de rede
+blfs/general/python-modules@pygments            skip     3       # testes: pip install wcag-contrast-ratio precisa de rede (e o pytest só vem depois)
+blfs/general/python-modules@pytest              skip     3       # testes: pip install pytest[dev] precisa de rede
+blfs/general/nodejs                             replace  1       # Brotli, c-ares, libuv e nghttp2 internos (só OpenSSL, zlib e ICU do sistema); make -j8
+blfs/general/gdb                                skip     2       # documentação da API precisa do Doxygen (não instalado)
+blfs/general/gdb                                skip     3       # testes: o livro não os recomenda (3 a 15 SBU, dezenas de falhas esperadas)
+blfs/general/gdb                                skip     5       # cópia da documentação Doxygen (bloco 2 omitido)
+blfs/general/valgrind                           skip     2       # só prepara a suite de testes (make regtest), que não corre

@@ -1,0 +1,270 @@
+#!/usr/bin/expect -f
+# senha do root: variável SENHA_ROOT (carregar_senhas em lib.sh, de scripts/senhas.local)
+if {![info exists env(SENHA_ROOT)]} { puts stderr "falta SENHA_ROOT"; exit 2 }
+set senha_root $env(SENHA_ROOT)
+# Teste da persistência escolhida pelo assistente (bloco 11 da F8e, scripts/apps/persistencia/CONTRATO.md):
+# o backend ianinja-persistencia chamado pelo MESMO caminho do greeter (su lightdm -> sudo -n
+# /usr/libexec/ianinja-assistente/aplicar persistencia-listar|persistencia-criar, JSON no stdin),
+# em vários arranques, pela consola série.
+# Uso: teste-persistencia.exp ficheiro <iso> <log> <resultado> <disco-ntfs.img>
+#        disco virtio com NTFS (ou exFAT/FAT, feito no host): 1.º arranque (BIOS) grava um ficheiro em
+#        /home/ninja e uma ligação Wi-Fi do NetworkManager, cria o ficheiro /ianinja/ianinja-dados.img
+#        (1536 MiB) — que recebe a cópia da camada de escrita — e reinicia pelo "aplicar reiniciar";
+#        2.º arranque confirma que o initramfs usa o ficheiro e que tudo lá está.
+#      teste-persistencia.exp pen <iso> <log> <resultado> <pen.img>
+#        imagem de 8 GB com a ISO gravada no início, ligada como pen USB (xhci + usb-storage): 1.º
+#        arranque (BIOS) cria a partição nova a seguir à imagem; 2.º arranque (BIOS) e 3.º (UEFI)
+#        confirmam a persistência, os dados e que o arranque (GRUB BIOS e UEFI) continua a funcionar.
+# Ensaio sem refazer o SquashFS: se a ISO tiver live/extra/, o seu conteúdo é copiado para / depois
+# de cada login (ferramentas novas em ensaio; a ISO final não tem essa pasta).
+set modo [lindex $argv 0]
+set iso  [lindex $argv 1]
+set logf [lindex $argv 2]
+set resf [lindex $argv 3]
+set img  [lindex $argv 4]
+log_file -noappend $logf
+set res [open $resf w]
+set kvm [expr {[file exists /dev/kvm] && [file writable /dev/kvm]}]
+if {$kvm} { puts $res "INFO  aceleração KVM ativa" } else { puts $res "INFO  /dev/kvm indisponível: emulação TCG, timeouts >= 600 s, timeouts = LENTO" }
+flush $res
+proc t {s} { global kvm; if {!$kvm && $s < 600} { return 600 }; return $s }
+proc criterio {nome ok} { global res; puts $res [expr {$ok ? "PASS  $nome" : "FAIL  $nome"}]; flush $res }
+proc nota {x} { global res; puts $res "INFO  $x"; flush $res }
+proc expirou {nome {fatal 1}} {
+  global res kvm
+  if {$kvm} { puts $res "FAIL  $nome (timeout)" } else { puts $res "LENTO $nome (timeout sem KVM — não conta como falha)" }
+  flush $res
+  if {$fatal} { puts $res "INFO  teste interrompido: os critérios seguintes não foram avaliados"; close $res; exit 2 }
+}
+proc falhou {nome {motivo ""}} {
+  global res
+  if {$motivo ne ""} { nota $motivo }
+  criterio $nome 0
+  close $res; exit 1
+}
+
+# arrancar <bios|uefi>: a ISO como CD + o disco de dados virtio (modo ficheiro), ou só a imagem da
+# pen como disco USB de arranque (modo pen). Assistente desligado pelo SMBIOS (como nos outros testes).
+proc arrancar {fw} {
+  global iso img modo kvm spawn_id
+  set cmd [list qemu-system-x86_64 -m 4096 -smp 4 -nographic -no-reboot -nic user,model=e1000 -vga std \
+           -smbios type=11,value=ianinja.assistente=0]
+  if {$modo eq "pen"} {
+    lappend cmd -drive if=none,id=pen,format=raw,file=$img \
+      -device qemu-xhci,id=xhci -device usb-storage,bus=xhci.0,drive=pen,removable=on,bootindex=0
+  } else {
+    lappend cmd -cdrom $iso -boot d -drive file=$img,format=raw,if=virtio
+  }
+  if {$fw eq "uefi"} { lappend cmd -bios /usr/share/ovmf/OVMF.fd }
+  if {$kvm} { lappend cmd -enable-kvm -cpu host } else { lappend cmd -cpu max,la57=off }
+  eval spawn $cmd
+}
+
+# login root na série, com novas tentativas (ver a nota sobre os blocos expect no teste-pen.exp)
+proc entrar {} {
+  global spawn_id timeout
+  set timeout [t 300]
+  expect {
+    "login:" {}
+    timeout { return 0 }
+  }
+  for {set k 0} {$k < 4} {incr k} {
+    if {$k > 0} { after 1000 }
+    send "root\r"
+    set timeout 90
+    expect {
+      "assword:" {}
+      timeout { continue }
+    }
+    send "$senha_root\r"
+    set timeout 150
+    set r 0
+    expect {
+      -re {\]# |\n# $} { set r 1 }
+      "Login incorrect" { exp_continue }
+      "Login timed out" { exp_continue }
+      "login:" { set r 0 }
+      timeout { return 0 }
+    }
+    if {$r} {
+      send "PS1='TST> '\r"
+      expect {
+        "TST> " {}
+        timeout { return 0 }
+      }
+      # ensaio: ferramentas novas em live/extra da ISO (a ISO final não tem a pasta)
+      send -- {if [ -d /run/live/iso/live/extra ]; then cp -a /run/live/iso/live/extra/. / && echo EXTRA_COPIADO; fi; echo EX"TRA_FIM"}
+      send "\r"
+      set timeout [t 120]
+      expect {
+        "EXTRA_FIM" { expect "TST> " }
+        timeout { return 0 }
+      }
+      return 1
+    }
+  }
+  return 0
+}
+
+# arranque até ao prompt: devolve a linha "persistência: ..." do initramfs
+proc arranque {fw nome} {
+  global timeout
+  arrancar $fw
+  set timeout [t 240]
+  expect {
+    "ianinjapelagestao 12.4 (Live)" {}
+    timeout { expirou "$nome: menu do GRUB ($fw)" }
+  }
+  set p ""
+  expect {
+    -re {persist.{1,4}ncia: ([^\r\n]+)[\r\n]} { set p $expect_out(1,string); exp_continue }
+    -re {AVISO: [^\r\n]+[\r\n]} { nota "initramfs: [string trim $expect_out(0,string)]"; exp_continue }
+    "raiz overlay pronta" {}
+    "FALHA NO ARRANQUE LIVE" { falhou "$nome: arranque ($fw)" "falha no initramfs" }
+    timeout { expirou "$nome: arranque ($fw)" }
+  }
+  nota "$nome ($fw): persistência: $p"
+  if {![entrar]} { expirou "$nome: login root ($fw)" }
+  return $p
+}
+
+proc desligar {} {
+  global timeout
+  set timeout [t 180]
+  send "sync; poweroff\r"
+  expect {
+    eof {}
+    timeout {}
+  }
+  catch {close}
+  catch {wait}
+}
+
+# comando na VM que termina com MARCA_OK ou MARCA_FALHOU; devolve 1/0/-1 (timeout)
+proc verificar {marca cmd segundos} {
+  global timeout
+  set timeout [t $segundos]
+  send -- "$cmd\r"
+  set r -1
+  expect {
+    "${marca}_OK" { set r 1 }
+    "${marca}_FALHOU" { set r 0 }
+    timeout { set r -1 }
+  }
+  if {$r >= 0} { expect "TST> " } else { send "\003"; set timeout [t 30]; expect "TST> " }
+  return $r
+}
+
+set APL "su -s /bin/sh lightdm -c '/usr/bin/sudo -n /usr/libexec/ianinja-assistente/aplicar"
+if {$modo eq "ficheiro"} { set prefixo "ficheiro:" } else { set prefixo "pen:" }
+
+# ================================================================ 1.º arranque (BIOS): criar e gravar
+set p [arranque bios "1.º arranque"]
+if {![string match "desligada*" $p]} { nota "esperava-se persistência desligada no 1.º arranque (está: $p)" }
+set timeout [t 60]
+send "lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,PTTYPE; cat /run/live/iso-dev\r"
+expect "TST> "
+
+# 1. listar pelo caminho do greeter propõe o destino esperado
+set nome "1.º arranque: aplicar persistencia-listar (lightdm -> sudo) propõe um destino $prefixo"
+set timeout [t 120]
+send -- "$APL persistencia-estado'; $APL persistencia-listar' > /tmp/lista.json; cat /tmp/lista.json; echo; python3 -I -c 'import json,sys; l=json.load(open(\"/tmp/lista.json\")); o=\[x for x in l if x\[\"id\"\].startswith(\"$prefixo\")\]; assert o, \"sem opcao $prefixo\"; assert o\[0\]\[\"max_mb\"\] >= 1024; print(\"DESTINO=\" + o\[0\]\[\"id\"\]); print(\"recomendado\", o\[0\]\[\"recomendado\"\], \"max_mb\", o\[0\]\[\"max_mb\"\])' > /tmp/destino.txt && cat /tmp/destino.txt && echo LIS\"TA_OK\" || echo LIS\"TA_FALHOU\"\r"
+set destino ""
+expect {
+  -re {DESTINO=([a-z]+:/dev/[a-z0-9/]+)[\r\n]} { set destino $expect_out(1,string); exp_continue }
+  "LISTA_OK" { criterio $nome [expr {$destino ne ""}] }
+  "LISTA_FALHOU" { criterio $nome 0 }
+  timeout { expirou $nome }
+}
+expect "TST> "
+if {$destino eq ""} { falhou "1.º arranque: sem destino $prefixo" }
+nota "destino escolhido: $destino"
+
+# 2. gravar dados ANTES de criar (ficheiro em /home/ninja + ligação Wi-Fi do NM: ficam na camada de
+#    escrita em tmpfs e o criar tem de os copiar para o destino) e criar pelo caminho do greeter (JSON
+#    no stdin). O que se altera DEPOIS do criar e antes de reiniciar perde-se (o assistente reinicia logo).
+set nome "1.º arranque: dados gravados (/home/ninja, ligação Wi-Fi do NM) e aplicar persistencia-criar cria $destino (PROGRESSO/OK) copiando-os"
+set r [verificar DADOS {echo "DADOS_PERSISTENTES_OK" > /home/ninja/teste-persistencia.txt && chown ninja:ninja /home/ninja/teste-persistencia.txt && nmcli con add type wifi ifname '*' con-name teste-ianinja ssid TesteIaninja wifi-sec.key-mgmt wpa-psk wifi-sec.psk 'senha-de-teste-123' > /dev/null && ls /etc/NetworkManager/system-connections/ && test -f /etc/NetworkManager/system-connections/teste-ianinja.nmconnection && sync && echo DA"DOS_OK" || echo DA"DOS_FALHOU"} 120]
+if {$r < 0} { expirou $nome }
+if {$r != 1} { falhou $nome "não foi possível gravar os dados de teste" }
+if {$modo eq "ficheiro"} { set tam {"tamanho_mb": 1536} } else { set tam {"tamanho_mb": 0} }
+set timeout [expr {$kvm ? 900 : 2700}]
+send -- "printf '%s' '{\"id\": \"$destino\", $tam, \"confirmo_apagar\": false}' | $APL persistencia-criar' | tee /tmp/criar.out; rc=\${PIPESTATUS\[1\]}; echo \"criar rc=\$rc\"; grep -c '^PROGRESSO' /tmp/criar.out; if \[ \$rc = 0 \] && grep -q '^OK $destino' /tmp/criar.out && grep -q '^PROGRESSO 100' /tmp/criar.out; then echo CRI\"AR_OK\"; else echo CRI\"AR_FALHOU\"; fi\r"
+set criado 0
+expect {
+  "CRIAR_OK" { set criado 1 }
+  "CRIAR_FALHOU" { set criado 0 }
+  timeout { expirou $nome }
+}
+expect "TST> "
+criterio $nome $criado
+if {!$criado} { nota "o criar falhou (ver /tmp/criar.out no log): os critérios seguintes não foram avaliados"; close $res; exit 1 }
+# estado continua inativo neste arranque (só a partir do seguinte); o marcador do reiniciar existe
+send "ianinja-persistencia estado; ls -la /run/ianinja-persistencia/ 2>/dev/null; lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL\r"
+expect "TST> "
+# (informativo) o LightDM consegue reiniciar sem logind/ConsoleKit?
+set timeout [t 60]
+send -- {su -s /bin/sh lightdm -c "python3 -c 'import gi; gi.require_version(\"LightDM\", \"1\"); from gi.repository import LightDM; print(\"CAN_RESTART=\" + str(LightDM.get_can_restart()))'" 2>&1 | tail -n 2}
+send "\r"
+expect {
+  -re {CAN_RESTART=(True|False)} { nota "LightDM.get_can_restart() no greeter: $expect_out(1,string) (sem logind: o assistente usa 'aplicar reiniciar')"; exp_continue }
+  "TST> " {}
+  timeout {}
+}
+# reiniciar pelo aplicar (só permitido depois do OK): com -no-reboot o QEMU termina
+set nome "1.º arranque: aplicar reiniciar (lightdm -> sudo) reinicia depois de persistencia-criar ter dado OK"
+set timeout [t 180]
+send -- "sync; $APL reiniciar'; echo \"reiniciar rc=\$?\"\r"
+set reiniciou 0
+expect {
+  -re {[\r\n]OK[\r\n]} { set reiniciou 1; exp_continue }
+  -re {reiniciar rc=0} { set reiniciou 1; exp_continue }
+  -re {reiniciar rc=[1-9]} { exp_continue }
+  eof { criterio $nome $reiniciou }
+  timeout { criterio $nome 0; nota "o aplicar reiniciar não reiniciou a VM em 180 s"; send "poweroff\r"; expect { eof {} timeout {} } }
+}
+catch {close}
+catch {wait}
+
+# ================================================================ 2.º arranque (BIOS): usa o destino
+proc confirmar {fw esperado} {
+  global modo destino timeout
+  set p [arranque $fw "arranque seguinte ($fw)"]
+  set nome "arranque $fw seguinte: o initramfs usa o destino ($esperado) e 'estado' diz ativo"
+  if {$modo eq "ficheiro"} { set okp [regexp {IANINJA-DADOS \(ficheiro ianinja/ianinja-dados\.img em /dev/} $p] } else { set okp [regexp {IANINJA-DADOS \(/dev/sd[a-z]+[0-9]+\)} $p] }
+  set tipo [expr {$modo eq "ficheiro" ? "ficheiro" : "pen"}]
+  set r [verificar ESTADO "ianinja-persistencia estado; E=\$(ianinja-persistencia estado --json); echo \"\$E\"; mount | grep -E ' / | /mnt/dados'; python3 -I -c 'import json,sys; d=json.loads(sys.argv\[1\]); assert d\[\"ativo\"\] is True and d\[\"tipo\"\] == \"$tipo\" and d\[\"livre_mb\"\] > 0, d' \"\$E\" && echo ES\"TADO_OK\" || echo ES\"TADO_FALHOU\"" 60]
+  if {$r < 0} { expirou $nome 0 } else { criterio $nome [expr {$okp && $r == 1}] }
+  if {!$okp} { nota "mensagem do initramfs inesperada: $p" }
+  set nome "arranque $fw seguinte: os dados estão lá (/home/ninja/teste-persistencia.txt e a ligação Wi-Fi teste-ianinja)"
+  set r [verificar DADOS2 {cat /home/ninja/teste-persistencia.txt; nmcli -t -f NAME con show | grep -x teste-ianinja; if grep -qx DADOS_PERSISTENTES_OK /home/ninja/teste-persistencia.txt && [ "$(stat -c %U /home/ninja/teste-persistencia.txt)" = ninja ] && nmcli -t -f NAME con show | grep -qx teste-ianinja && grep -q 'senha-de-teste-123' /etc/NetworkManager/system-connections/teste-ianinja.nmconnection; then echo DADOS"2_OK"; else echo DADOS"2_FALHOU"; fi} 120]
+  if {$r < 0} { expirou $nome 0 } else { criterio $nome [expr {$r == 1}] }
+}
+confirmar bios [expr {$modo eq "ficheiro" ? "ficheiro ianinja-dados.img" : "partição nova na pen"}]
+if {$modo eq "ficheiro"} {
+  desligar
+  close $res
+  exit 0
+}
+desligar
+
+# ================================================================ 3.º arranque (UEFI, só pen): arranque e greeter
+confirmar uefi "partição nova na pen, UEFI"
+set nome "arranque UEFI seguinte: Xorg e greeter do LightDM a correr (o arranque continua a funcionar)"
+set espera [expr {$kvm ? 90 : 300}]
+set timeout [expr {$kvm ? 240 : 720}]
+send "N=$espera\r"
+expect "TST> "
+send -- {for i in $(seq $N); do { pidof Xorg || pidof X; } > /dev/null && pidof lightdm-gtk-greeter > /dev/null && break; sleep 2; done; tail -n 3 /var/log/ianinja-dm.log; if { pidof Xorg || pidof X; } > /dev/null && pidof lightdm-gtk-greeter > /dev/null; then echo "GREE""TER_OK"; else echo "GREE""TER_FALTA"; fi}
+send "\r"
+expect {
+  "GREETER_OK" { criterio $nome 1 }
+  "GREETER_FALTA" { if {$kvm} { criterio $nome 0 } else { expirou $nome 0 } }
+  timeout { expirou $nome 0 }
+}
+expect "TST> "
+send "sfdisk -d /dev/sda 2>&1 | tail -n 6; dmesg | grep -i 'gpt' | tail -n 3\r"
+expect "TST> "
+desligar
+close $res
+exit 0

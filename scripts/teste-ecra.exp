@@ -1,0 +1,182 @@
+#!/usr/bin/expect -f
+# senha do root: variável SENHA_ROOT (carregar_senhas em lib.sh, de scripts/senhas.local)
+if {![info exists env(SENHA_ROOT)]} { puts stderr "falta SENHA_ROOT"; exit 2 }
+set senha_root $env(SENHA_ROOT)
+# Testes extra do ecrã (fora da F11), no QEMU com KVM, consola série + captura pelo monitor.
+# Uso: teste-ecra.exp compat-bios|compat-uefi <iso> <log> <resultado>
+#        escolhe no GRUB a 2.ª entrada "modo gráfico de compatibilidade" (nomodeset), confirma que
+#        não há driver DRM nativo, que o /dev/dri/card0 é do simpledrm e que o Xorg (modesetting)
+#        e o greeter arrancam; captura logs/ecra-<modo>.png
+#      teste-ecra.exp falha-x <iso> <log> <resultado> <vmlinuz> <initrd>
+#        arranque direto do kernel (-kernel) com nomodeset e sem modo VESA: não há framebuffer nem
+#        DRM, o Xorg falha de verdade; confirma que o ianinja-dm desiste à 3.ª falha, muda para a
+#        tty1 e mostra o aviso; captura logs/ecra-falha-x.png
+set modo   [lindex $argv 0]
+set iso    [lindex $argv 1]
+set logf   [lindex $argv 2]
+set resf   [lindex $argv 3]
+set vmlinuz [lindex $argv 4]
+set initrd  [lindex $argv 5]
+set dirlog [file dirname [file normalize $logf]]
+set sock   $dirlog/ecra-$modo.sock
+set ppm    $dirlog/ecra-$modo.ppm
+set png    $dirlog/ecra-$modo.png
+set conv   [file dirname [file normalize [info script]]]/ppm-para-png.py
+log_file -noappend $logf
+set res [open $resf w]
+
+proc criterio {nome ok} { global res; puts $res [expr {$ok ? "PASS  $nome" : "FAIL  $nome"}]; flush $res }
+proc nota {t} { global res; puts $res "INFO  $t"; flush $res }
+proc fim {} { global res; close $res; catch {exec pkill -f "qemu-system-x86_64.*ecra-"}; exit 0 }
+proc expirou {nome} { criterio "$nome (timeout)" 0; fim }
+
+proc captura {} {
+  global sock ppm png conv
+  file delete -force $ppm $png
+  catch {exec sh -c {{ printf 'screendump %s\n' "$1"; sleep 3; } | socat - "UNIX-CONNECT:$2" > /dev/null 2>&1} sh $ppm $sock}
+  for {set i 0} {$i < 20 && !([file exists $ppm] && [file size $ppm] > 0)} {incr i} { after 500 }
+  if {![file exists $ppm]} { nota "captura: screendump falhou"; return }
+  if {![catch {exec python3 -I $conv $ppm $png} out]} { file delete -force $ppm; nota "captura do ecrã: $png ($out)" } else { nota "captura sem conversão: $ppm" }
+}
+
+set cmd [list qemu-system-x86_64 -m 4096 -smp 4 -enable-kvm -cpu host -cdrom $iso -nographic -no-reboot \
+         -nic user,model=e1000 -vga std -monitor unix:$sock,server,nowait -name ecra-$modo]
+file delete -force $sock
+if {$modo eq "compat-uefi"} { lappend cmd -bios /usr/share/ovmf/OVMF.fd }
+set direto [expr {$modo in {falha-x recurso desiste}}]
+# o assistente de 1.º arranque (bloco 09) fica desligado: estes testes esperam o lightdm-gtk-greeter.
+# Com -kernel vai na linha do kernel (ianinja.assistente=0); pelo GRUB (-boot d) a linha do kernel
+# não muda e vai nas cadeias OEM do SMBIOS (tipo 11), que o contas.py também lê.
+if {$modo eq "falha-x"} {
+  lappend cmd -kernel $vmlinuz -initrd $initrd -append "net.ifnames=0 nomodeset console=ttyS0,115200 console=tty0 ianinja.assistente=0"
+} elseif {$modo eq "recurso"} {
+  lappend cmd -kernel $vmlinuz -initrd $initrd -append "quiet net.ifnames=0 ianinja-dm.simular-falha=2 console=ttyS0,115200 console=tty0 ianinja.assistente=0"
+} elseif {$modo eq "desiste"} {
+  lappend cmd -kernel $vmlinuz -initrd $initrd -append "quiet net.ifnames=0 ianinja-dm.simular-falha=9 console=ttyS0,115200 console=tty0 ianinja.assistente=0"
+} else {
+  lappend cmd -boot d -smbios type=11,value=ianinja.assistente=0
+}
+
+# login root na série, robusto: o login pode demorar (pam_elogind enquanto o elogind arranca)
+# ou expirar; nesse caso volta a tentar quando aparecer outro login:
+proc entrar {} {
+  global spawn_id timeout
+  set timeout 300
+  # blocos expect SEMPRE em várias linhas: 'expect { ... }' numa só linha é um único padrão literal
+  expect {
+    "login:" {}
+    timeout { return 0 }
+  }
+  for {set k 0} {$k < 4} {incr k} {
+    after 1000
+    send "root\r"
+    set timeout 90
+    expect {
+      "assword:" {}
+      timeout { continue }
+    }
+    send "$senha_root\r"
+    set timeout 150
+    set r 0
+    expect {
+      -re {\]# |\n# $} { set r 1 }
+      "Login incorrect" { exp_continue }
+      "Login timed out" { exp_continue }
+      "login:" { set r 0 }
+      timeout { set r 0 }
+    }
+    if {$r} {
+      send "PS1='TST> '\r"
+      expect {
+        "TST> " { return 1 }
+        timeout { return 0 }
+      }
+    }
+  }
+  return 0
+}
+
+eval spawn $cmd
+
+if {!$direto} {
+  set timeout 120
+  expect {
+    "modo gr" {}
+    timeout { expirou "GRUB mostra a entrada modo gráfico de compatibilidade" }
+  }
+  # seta para baixo (a entrada 0 é a normal; a 1 é a de compatibilidade) e Enter
+  after 500
+  send "\033\[B"
+  after 500
+  send "\r"
+  criterio "GRUB mostra a entrada modo gráfico de compatibilidade" 1
+}
+set timeout 240
+expect {
+  "raiz overlay pronta" { criterio "initramfs monta a raiz (mensagem na série com tty0 como consola principal)" 1 }
+  "FALHA NO ARRANQUE LIVE" { criterio "initramfs monta a raiz" 0; fim }
+  timeout { expirou "initramfs monta a raiz" }
+}
+if {![entrar]} { expirou "login root na série" }
+set timeout 60
+send -- {cat /proc/cmdline; cat /sys/class/tty/console/active; grep -q nomodeset /proc/cmdline && echo "NOMO""DESET_OK"}
+send "\r"
+expect {
+  "NOMODESET_OK" { if {$modo ni {recurso desiste}} { criterio "linha do kernel com nomodeset" 1 } }
+  timeout { if {$modo ni {recurso desiste}} { criterio "linha do kernel com nomodeset" 0 } }
+}
+expect "TST> "
+
+if {$modo eq "recurso"} {
+  set timeout 400
+  send -- {for i in $(seq 180); do { pidof Xorg || pidof X; } > /dev/null && pidof lightdm-gtk-greeter > /dev/null && break; [ -e /run/ianinja-dm/desistiu ] && break; sleep 2; done; ianinja-dm estado; if pidof lightdm-gtk-greeter > /dev/null && grep -q "ativa no nível de recurso 1" /var/log/ianinja-dm.log && grep -q AccelMethod /etc/X11/xorg.conf.d/90-ianinja-recurso.conf; then echo "RECUR""SO_OK"; else echo "RECUR""SO_FALHOU"; fi}
+  send "
+"
+  expect {
+    "RECURSO_OK" { criterio "X falha 2 vezes (simulado): ianinja-dm passa ao nível 1 (modesetting sem aceleração) e o greeter aparece" 1 }
+    "RECURSO_FALHOU" { criterio "X falha 2 vezes (simulado): ianinja-dm passa ao nível 1 e o greeter aparece" 0 }
+    timeout { expirou "ianinja-dm nível de recurso" }
+  }
+  expect "TST> "
+  after 10000
+  captura
+} elseif {$modo in {falha-x desiste}} {
+  set timeout 400
+  send -- {for i in $(seq 180); do [ -e /run/ianinja-dm/desistiu ] && break; sleep 2; done; ls /dev/dri 2>&1; cat /var/log/ianinja-dm.log; echo "consola ativa: tty$(fgconsole)"; grep -h 'Fatal server error' -A3 /var/log/Xorg.0.log | head -5; pidof lightdm || echo "lightdm parado"; if [ -e /run/ianinja-dm/desistiu ] && [ "$(fgconsole)" = 1 ] && ! pidof lightdm > /dev/null; then echo "DESIS""TIU_OK"; else echo "DESIS""TIU_FALHOU"; fi}
+  send "\r"
+  expect {
+    "DESISTIU_OK" { criterio "X falha em todos os níveis ($modo): ianinja-dm desiste, muda para a tty1 e para o LightDM" 1 }
+    "DESISTIU_FALHOU" { criterio "X falha em todos os níveis ($modo): ianinja-dm desiste, muda para a tty1 e para o LightDM" 0 }
+    timeout { expirou "ianinja-dm desiste" }
+  }
+  expect "TST> "
+  after 3000
+  captura
+  # repor: volta a tentar (deve voltar a falhar e voltar a desistir; só se verifica que repor corre)
+  send -- {ianinja-dm repor; sleep 3; tail -n 2 /var/log/ianinja-dm.log}
+  send "\r"
+  expect {
+    "falhas apagadas" { criterio "ianinja-dm repor" 1 }
+    timeout { criterio "ianinja-dm repor" 0 }
+  }
+  expect "TST> "
+} else {
+  set timeout 300
+  send -- {for i in $(seq 120); do { pidof Xorg || pidof X; } > /dev/null && pidof lightdm-gtk-greeter > /dev/null && break; sleep 2; done; lsmod | grep -E '^(bochs|drm_vram|virtio_gpu)' ; ls -l /dev/dri; for c in /sys/class/drm/card*; do echo "$c -> $(basename $(readlink -f $c/device/driver))"; done; grep -hE 'LoadModule: "modesetting"|modeset\(0\): (Output|Modeline)|Fatal server error' /var/log/Xorg.0.log | head -5; tail -n 3 /var/log/ianinja-dm.log; if readlink -f /sys/class/drm/card0/device/driver | grep -q simple && ! lsmod | grep -q '^bochs' && pidof lightdm-gtk-greeter > /dev/null && ! grep -q 'Fatal server error' /var/log/Xorg.0.log; then echo "COM""PAT_OK"; else echo "COM""PAT_FALHOU"; fi}
+  send "\r"
+  expect {
+    "COMPAT_OK" { criterio "nomodeset: card0 do simpledrm, sem bochs, Xorg modesetting e greeter a correr" 1 }
+    "COMPAT_FALHOU" { criterio "nomodeset: card0 do simpledrm, sem bochs, Xorg modesetting e greeter a correr" 0 }
+    timeout { expirou "Xorg e greeter com nomodeset" }
+  }
+  expect "TST> "
+  after 10000
+  captura
+}
+send "poweroff\r"
+set timeout 120
+expect {
+  eof {}
+  timeout {}
+}
+fim

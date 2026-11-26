@@ -1,0 +1,42 @@
+# F8d — interface gráfica, bloco 1: base gráfica (bibliotecas gerais, Xorg, Mesa). Ver scripts/f08d-gui.sh
+# e scripts/gui/decisoes-01.txt. (x/xorg7 está em gui-00-xorg7.txt.)
+# página                                tipo     blocos  # motivo
+blfs/general/libpng                     skip     1       # patch APNG opcional (só o Firefox/Thunderbird o usam) — não descarregado
+blfs/general/icu                        skip     1,2     # exemplos com <application or library> (ldd/readelf), não são comandos
+blfs/general/libxml2                    skip     2       # suite de testes opcional (xmlts20130923.tar.gz) não descarregada; não há "make check"
+blfs/general/libxml2                    skip     3       # /etc/init.d/httpd stop: não há servidor web (e não se correm os testes)
+blfs/general/glib2                      skip     1       # patch opcional glib-skip_warnings (GLIB_LOG_LEVEL) — não descarregado
+blfs/general/glib2                      skip     8       # documentação da API precisa de gi-docgen (não instalado); o bloco 9 faz o ninja install final
+blfs/general/freetype2                  skip     1,4     # documentação adicional (freetype-doc) — omitida para poupar espaço na ISO
+blfs/general/graphite2                  skip     5,7     # make docs precisa de asciidoc/Doxygen/dblatex (não instalados); o bloco 7 copia esses ficheiros
+blfs/x/x7lib                            replace  2       # mkdir -p lib (o passo pode ser repetido: corre_passo tenta 3 vezes)
+blfs/x/x7lib                            skip     3       # definição de as_root com sudo/su: compila-se como root (as_root já vem de blfs-env.sh)
+blfs/x/x7lib                            skip     4       # grep dos logs do make check (os testes estão comentados no ciclo do livro)
+blfs/x/x7lib                            skip     5,7     # "bash -e" / "exit": subshell interativo do livro — o script gerado já corre com bash -e
+blfs/x/x7lib                            replace  6       # ciclo do livro + rm -rf do diretório antes de extrair (libpciaccess deixava build/ e falhava ao repetir)
+blfs/x/x7lib                            skip     8       # symlinks /usr/lib/X11 e /usr/include/X11: só para XORG_PREFIX diferente de /usr
+blfs/general/llvm                       skip     3       # compiler-rt (download opcional: sanitizers/profiling) — não é preciso ao Mesa nem ao Rust
+blfs/general/llvm                       replace  6       # cmake do livro com LLVM_PARALLEL_LINK_JOBS=2 e ninja -j10 (11 GB de RAM: compilar+ligar clang com -j14 arrisca OOM)
+blfs/general/llvm                       skip     7,8     # suite de testes (ninja check-all: muito longa) e correção dos testes do compiler-rt (não instalado)
+blfs/x/mesa                             skip     1       # lspci | grep VGA: só informativo (a ISO leva drivers para todo o hardware comum)
+blfs/x/mesa                             replace  3       # drivers Gallium explícitos, sem Vulkan (glslang/Vulkan-Loader não instalados), só X11 (Wayland ainda não instalado), sem codecs com patentes
+blfs/x/mesa                             skip     4       # suite de testes (+1.7 SBU e 576 MB) — omitida para poupar tempo
+blfs/x/mesa                             skip     6       # documentação HTML — omitida para poupar espaço na ISO
+blfs/x/x7app                            replace  2       # mkdir -p app (o passo pode ser repetido)
+blfs/x/x7app                            skip     3       # definição de as_root com sudo/su (compila-se como root; as_root vem de blfs-env.sh)
+blfs/x/x7app                            skip     4,6     # "bash -e" / "exit": subshell interativo do livro
+blfs/x/x7font                           replace  2       # mkdir -p font (o passo pode ser repetido)
+blfs/x/x7font                           skip     3       # definição de as_root com sudo/su (compila-se como root; as_root vem de blfs-env.sh)
+blfs/x/x7font                           skip     4,6     # "bash -e" / "exit": subshell interativo do livro
+blfs/general/dbus                       skip     7       # testes precisam de D-Bus Python/PyGObject e reconfiguram com asserts/intrusive_tests (não usar em produção)
+blfs/general/dbus                       skip     9       # make install-dbus: feito no passo dbus-bootscript (função bootscripts, no diretório do blfs-bootscripts)
+blfs/general/dbus                       skip     10,11,12 # arrancar o daemon de sistema / de sessão: não há D-Bus a correr no chroot (arranca no boot pelo bootscript)
+blfs/general/elogind                    replace  1       # -D man=auto -> -D man=false: há xsltproc mas não DocBook (xsltproc --nonet falharia)
+blfs/general/elogind                    replace  4       # acrescento ao /etc/pam.d/system-session só se ainda não existir (o passo pode ser repetido)
+blfs/postlfs/polkit                     replace  1       # utilizador/grupo polkitd criados só se não existirem (permite repetir o passo)
+blfs/postlfs/polkit                     replace  2       # -D man=false (DocBook não instalado, como o livro indica) e -D tests=false (testes precisam de dbusmock e D-Bus a correr)
+blfs/x/xorg-server                      skip     1       # patch opcional TearFree: o xfwm4 do Xfce tem compositor (o livro só o aconselha sem compositor)
+blfs/x/xorg-server                      replace  3       # acrescento ao /etc/sysconfig/createfiles só se ainda não existir (o passo pode ser repetido)
+blfs/x/x7driver@libinput                skip     3       # documentação HTML só existe com -D documentation=true (precisa de Sphinx)
+blfs/x/xinit                            skip     3       # Xorg setuid root: desnecessário (o LightDM arranca o X como root; startx sem root via elogind)
+blfs/x/xinit                            skip     4       # startx no 1.º VT livre: só faz sentido com o Xorg setuid (bloco 3)

@@ -1,0 +1,3 @@
+# ianinjapelagestao (scripts/apps/funcoes-10.sh): adaptador Bluetooth ligado depois do arranque
+# -> arranca o bluetoothd (no arranque só corre se já houver adaptador)
+ACTION=="add", SUBSYSTEM=="bluetooth", KERNEL=="hci[0-9]*", ENV{DEVTYPE}=="host", RUN+="/usr/sbin/ianinja-bluetooth-hotplug"

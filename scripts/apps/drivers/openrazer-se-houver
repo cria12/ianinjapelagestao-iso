@@ -1,0 +1,5 @@
+#!/bin/sh
+# openrazer-se-houver — arranque automático (XDG autostart) do openrazer-daemon na sessão gráfica,
+# só se houver um periférico Razer (USB 1532:xxxx) ligado: sem ele não gasta memória.
+grep -qsx 1532 /sys/bus/usb/devices/*/idVendor || exit 0
+exec /usr/bin/openrazer-daemon
